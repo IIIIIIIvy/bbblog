@@ -7,7 +7,7 @@ config:
     full: true
     background: tint-plate
     hero:
-      name: Oh, hi there🤓
+      name: Oh, hi there
       tagline: 
       text: Thanks for your visiting!
       actions:
