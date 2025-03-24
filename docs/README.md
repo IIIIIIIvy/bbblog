@@ -7,9 +7,9 @@ config:
     full: true
     background: tint-plate
     hero:
-      name: Ivy's Blog
-      tagline: VuePress Next Theme
-      text: A simple, feature-rich, document & blog
+      name: Oh, hi there🤓
+      tagline: 
+      text: Thanks for your visiting!
       actions:
         -
           theme: brand

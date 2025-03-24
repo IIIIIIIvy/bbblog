@@ -5,7 +5,7 @@ import { plumeTheme } from 'vuepress-theme-plume'
 export default defineUserConfig({
   base: '/bbblog/',
   lang: 'en-US',
-  title: 'My Vuepress Site',
+  title: "Ivy's blog",
   description: '',
 
   head: [
