@@ -36,15 +36,16 @@ export default defineThemeConfig({
   /**
    * @see https://theme-plume.vuejs.press/config/basic/#profile
    */
+  /* 博主头像等信息 */
   profile: {
-    avatar: 'https://theme-plume.vuejs.press/plume.png',
-    name: 'My Vuepress Site',
-    description: '',
-    // circle: true,
-    // location: '',
-    // organization: '',
+    name: 'Ivy',
+    description: 'The world is my oyster',
+    avatar: '/images/headshot.jpeg',
+    location: 'ShenZhen, China',
+    // organization: '您的组织',
+    circle: true, // 是否为圆形头像
+    layout: 'right', // 个人信息在左侧还是右侧，'left' | 'right'
   },
-
   navbar,
   notes,
 

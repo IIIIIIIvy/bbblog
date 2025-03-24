@@ -32,22 +32,6 @@ export default defineUserConfig({
     // changelog: false,
 
 
-    /* 博主头像等信息 */
-    profile: {
-      name: 'Ivy',
-      description: 'The world is my oyster',
-      avatar: '/images/headshot.jpeg',
-      location: 'ShenZhen, China',
-      // organization: '您的组织',
-      circle: true, // 是否为圆形头像
-      layout: 'right', // 个人信息在左侧还是右侧，'left' | 'right'
-    },
-    // 社交链接
-    social: [
-      { icon: 'github', link: 'https://github.com/vuepress-theme-plume' },
-      // ... more
-    ],
-
     /**
      * 博客
      * @see https://theme-plume.vuejs.press/config/basic/#blog
