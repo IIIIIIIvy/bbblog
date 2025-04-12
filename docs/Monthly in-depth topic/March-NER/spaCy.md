@@ -80,10 +80,13 @@ print("like_num:", [token.like_num for token in doc])
 
 ::: card title="OUTPUT" 
 Index:    [0, 1, 2, 3, 4, 5, 6]
+
 Text:     ['这个', '肉夹馍', '花', '了', '￥', '5', '。']
 
 is_alpha: [True, True, True, True, False, False, False]
+
 is_punct: [False, False, False, False, False, False, True]
+
 like_num: [False, False, False, False, False, True, False]
 :::
 
