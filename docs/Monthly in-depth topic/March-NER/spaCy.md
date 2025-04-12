@@ -149,7 +149,7 @@ for token in doc:// [!code word:.pos_]
 ==.head=={.info}属性返回<u>句法头词符</u>。你可以认为这是词在句子中所依附的母词符。
 
 ```python
-for token in doc: // [!code word:.dep_]
+for token in doc: # [!code word:.dep_]
     print(token.text, token.pos_, token.dep_, token.head.text)
 ```
 ::: details OUTPUT
@@ -166,7 +166,7 @@ for token in doc: // [!code word:.dep_]
 doc = nlp("微软准备用十亿美金买下这家英国的创业公司。")
 
 # 遍历识别出的实体
-for ent in doc.ents:// [!code word:.label_]
+for ent in doc.ents:# [!code word:ent]
     # 打印实体文本及其标注
     print(ent.text, ent.label_)
 ```
