@@ -1,8 +1,6 @@
-# NLP using spaCy
----
-## 1. basis
-### 1.1 what is it
-#### 1.1.1 spaCy
+# 1. Basis
+## 1.1 What is it?
+### 1.1.1 spaCy
 spaCy的核心就是**包含了自然语言处理流程的对象**。通常把这个变量叫做nlp。
 
 ```python
@@ -14,7 +12,7 @@ import spacy
 nlp = spacy.blank("zh")
 ```
 
-#### 1.1.2 Doc对象
+### 1.1.2 Doc对象
 当我们用nlp对象来处理文本时，**spaCy会创建一个叫做Doc的对象**，这是"document"的缩写。 Doc可以让我们**用结构化的方式来读取文本相关的信息，并且不会有信息丢失**。
 eg: 
 ```python
@@ -26,7 +24,7 @@ for token in doc:
     print(token.text)
 ```
 
-#### 1.1.3 Token对象
+### 1.1.3 Token对象
 Token实例代表了**一个文本中的词符**，比如一个词或者一个标点符号。
 
 要读取某一个位置的词符，我们可以直接**使用doc的索引**。
@@ -45,7 +43,7 @@ print(token.text)
 一个
 :::
 
-#### 1.1.4 Span对象
+### 1.1.4 Span对象
 一个Span实例是**文本包含了一个或更多的词符的一段截取**。 它仅仅是Doc的一个**视图**而**不包含实际的数据本身**。
 
 要**创建一个span，我们可以使用Python截取的语法**。举个例子，1:3会创建一个从索引1开始 一直到索引3之前（不包括索引3）的词符截取。
@@ -62,7 +60,7 @@ print(span.text)
 一个句子
 :::
 
-#### 1.1.5 词汇的属性
+### 1.1.5 词汇的属性
 ```python
 doc = nlp("这个肉夹馍花了￥5。")
 
@@ -88,8 +86,9 @@ like_num: [False, False, False, False, False, True, False]
 - 这些属性也被叫做词汇属性：他们仅仅代表了*词典中元素的特性，而与词符所在的语义情境无关。*
 
 ---
-### 1.2 训练流程
-#### 1.2.1 流程的定义
+
+## 1.2 训练流程
+### 1.2.1 流程的定义
 很多非常有趣的分析是**基于语境**的： 比如一个词是否是动词，或者文本的一段跨度是否是人名。
 
 在spaCy中，已经有很多由大量标注过的文本例子训练而成的流程。
@@ -101,7 +100,7 @@ like_num: [False, False, False, False, False, True, False]
 
 流程可以输入更多的标注数据来优化结果，常见的应用是用特定数据优化用户需要的特定场景。
 
-#### 1.2.2 流程包
+### 1.2.2 流程包
 可以用spacy download命令下载训练好的流程包，如"zh_core_web_sm"这个流程包就是一个小的中文模型，它有所有核心功能，是从网上的文本训练而来。：
 ```bash
 python -m spacy download zh_core_web_sm
@@ -118,7 +117,7 @@ nlp = spacy.load("zh_core_web_sm")
 - 元信息
 - 配置文件
 
-#### 1.2.3 词性标注
+### 1.2.3 词性标注
 对处理后的文本得到的词符，可以通过 ==.pos_=={.info}属性读取其词性标注的结果。
 ```python
 import spacy
@@ -141,7 +140,8 @@ for token in doc: # [!code word:pos_]
 个 NUM  
 肉夹馍 NOUN  
 :::
-#### 1.2.4 依存关系解析
+
+### 1.2.4 依存关系解析
 依存关系，即词与词之间的关系。比如一个词是某一个句子或者物体的主语。
 
 ==.dep_=={.info}属性返回预测的<u>依存关系标注</u>。
@@ -159,7 +159,8 @@ for token in doc: # [!code word:dep_]
 个 NUM nummod 肉夹馍  
 肉夹馍 NOUN dobj 吃  
 :::
-#### 1.2.5 命名实体识别
+
+### 1.2.5 命名实体识别
 通过 ==doc.ents=={.info}，返回一个<u>Span实例</u>的遍历器；可以通过 ==.label_=={.info}属性读取模型预测出的所有命名实体以及**实体标注**。
 ```python
 # 处理文本
@@ -177,8 +178,8 @@ for ent in doc.ents:# [!code word:label_]
 :::
 
 ---
-### 1.3 基于规则的匹配抽取matcher
-#### 1.3.1 与正则表达式的差别
+## 1.3 基于规则的匹配抽取matcher
+### 1.3.1 与正则表达式的差别
 1. 作用对象不同：
     正则表达式作用在字符串上，而matcher是在Doc和Token
 2. 搜索对象不同：
@@ -186,7 +187,7 @@ for ent in doc.ents:# [!code word:label_]
     甚至可以直接调用模型的预测结果来写规则。
 3. 举个例子，我们可以寻找那些是动词而不是名词的"duck"词汇（"duck"名词意思是鸭子，而动词是闪避的意思）
 
-#### 1.3.2 匹配的模板
+### 1.3.2 匹配的模板
 匹配的模板是一些 ==list=={.info}，list的每一个元素是一个==dict=={.info}。 每个dict代表一个词符，键值是==词符属性名=={.info}，映射到==对应的目标值上面=={.info}。
 
 模板示例：
@@ -210,7 +211,7 @@ for ent in doc.ents:# [!code word:label_]
 [{"LEMMA": "buy"}, {"POS": "NOUN"}]
 ```
 
-#### 1.3.3 使用示例
+### 1.3.3 使用示例
 :::: steps
 1. 从spacy.matcher中导入matcher  
     ```python
@@ -231,7 +232,7 @@ for ent in doc.ents:# [!code word:label_]
 6. 此时会返回一个**每个元素是一个元组(tuple)的列表**：每个元组由**三个值**构成：匹配到的模板名的ID，匹配到的跨度的起始和终止索引。  
 ::::
 
-##### 1.3.3.1 匹配词符的完全一致的文字
+#### 1.3.3.1 匹配词符的完全一致的文字
 ```python
 import spacy
 
@@ -267,7 +268,7 @@ for match_id, start, end in matches:
 iPhone X
 :::
 
-##### 1.3.3.2 匹配词汇属性
+#### 1.3.3.2 匹配词汇属性
 ```python
 import spacy
 
@@ -349,7 +350,7 @@ for match_id, start, end in matches:
 喜欢猫
 :::
 
-##### 1.3.3.3 使用运算符和量词
+#### 1.3.3.3 使用运算符和量词
 使用运算符和量词来定义**一个词符应该被匹配几次**。 我们可以在目标词符后用"OP"这个关键词来添加它们。
 |  序号   |  例子   | 说明  |
 |  :----:  |  :----:  | :----:  |
@@ -371,4 +372,240 @@ doc = nlp("我买个肉夹馍。我还要买凉皮。")
 ::: details OUTPUT
 买个肉夹馍  
 买凉皮
+:::
+
+# 2. 使用spaCy进行大规模数据分析
+## 2.1 数据结构 (1): Vocab, Lexemes和StringStore
+### 2.1.1 Vocab & StringStore：词汇表，字符串库
+1. Vocab：一个词汇表，存储spaCy中多个文档共享的数据。除词汇外，还包括了标注和实体的标注方案。
+2. StringStore：
+- 为了节省内存，spaCy将所有字符串编码为**哈希值**。
+- 字符串在存储时，spaCy使用哈希方程为其生成一个ID，通过nlp.vocab.strings将ID和对应的字符串一起存储到StringStore中，且只存储一次。
+- StringStore是一个**双向**的查询表。你可以查找一个字符串获得其哈希值，也可以查找一个哈希值获得其字符串值。 spaCy内部的信息交流都是通过哈希ID进行的。
+    ```python
+    nlp.vocab.strings.add("咖啡")
+    coffee_hash = nlp.vocab.strings["咖啡"]
+    coffee_string = nlp.vocab.strings[coffee_hash]
+    ```
+- 但哈希ID不能逆求解。如果一个词不在词汇表里，那我们也没法办拿到它的字符串。 这也是为什么我们每次都要把共享词汇表传进来。
+    ```python
+    # 如果该字符串从未出现过则会报错
+    string = nlp.vocab.strings[7962530705879205333]
+    ```
+3. 实际应用中，使用nlp方法对文本进行处理后，可以在 ==nlp.vocab.strings=={.info}中查找字符串和哈希值；Doc也可以暴露出词汇表和字符串
+```python
+doc = nlp("我爱喝咖啡。")
+print("hash value:", nlp.vocab.strings["咖啡"])
+# [!code word:doc]
+# or: print("hash value:", doc.vocab.strings["咖啡"]) 
+print("string value:", nlp.vocab.strings[7962530705879205333])
+```
+::: details OUTPUT
+hash value: 7962530705879205333  
+string value: 咖啡
+:::
+___
+### 2.1.2 Lexemes: 词汇表中的元素
+**Lexeme（语素）** 是词汇表中和语境**无关**的元素。当我们在词汇表中查询一个字符串或者一个哈希ID就会获得一个lexeme。
+得到一个lexeme后，它同样具有一些和词符类似的属性，它们代表着**一个词的和语境无关的信息**，比如文本本身，或者是这个词是否包含了英文字母。
+Lexeme中**没有**词性标注、依存关系或者实体标签这些和语境关联的信息。
+```python
+doc = nlp("我爱喝咖啡。")
+lexeme = nlp.vocab["咖啡"]
+
+# 打印词汇的属性
+# lexeme.orth：哈希值
+print(lexeme.text, lexeme.orth, lexeme.is_alpha)
+```
+::: details OUTPUT
+咖啡 7962530705879205333 True
+:::
+___
+### 2.1.3 三者关系
+Doc包含了<u>语境中的词汇</u>，在这个例子里面就是指"I"、"love"、"coffee"这三个词符 以及它们的词性标注和依存关系。
+每个词符对应一个<u>语素lexeme</u>，里面保存着词汇的<u>哈希ID</u>。 要拿到这个词的文本表示，spaCy要在<u>字符串库</u>里面查找它的哈希值。
+![vocab, lexeme, stringstore](Relationship%20between%20vocab,%20lexeme&stringstore.png)
+
+---
+## 2.2 数据结构(2)：Doc、Span和Token
+### 2.2.1 Doc文档实例
+Doc是spaCy的核心数据结构之一。 当我们用nlp实例来处理文本时Doc就会被自动创建，那么如何**手动初始化这个类**呢？
+:::: steps
+1. 创建一个nlp实例
+2. 从spacy.tokens中**导入Doc类**
+3. 创建两个list，分别用于表示加入Doc的词汇，和其对应位置后空格。空格列表的元素为布尔值。
+4. 通过下列三个参数初始化Doc类：
+    - ==共享的词汇表nlp.vocab=={.caution}
+    - 词汇
+    - 空格
+::::
+```python
+# 创建一个nlp实例
+import spacy
+nlp = spacy.blank("en")
+
+# 导入Doc类
+from spacy.tokens import Doc
+
+# 用来创建doc的词汇和空格
+words = ["Hello", "world", "!"]
+spaces = [True, False, False]
+
+# 手动创建一个doc
+doc = Doc(nlp.vocab, words=words, spaces=spaces)
+```
+### 2.2.2 Span跨度实例
+一个Span是doc的**一段包含了一个或更多的词符的截取**。 
+如何创建Span实例？
+:::: steps
+1. （通过手动或其他方式）获得一个doc实例
+2. 通过下列4个参数初始化Span类：
+    - 对应的doc
+    - span的初始索引
+    - span的终止索引（不包含在这个span里面）
+    - 标签，可选参数
+::::
+
+创建一个span实例后，由于==doc.ents=={.info}是可写的，可以通过一个span列表覆盖doc.ents，来手动添加一些实体。
+
+::: warning
+Doc和Span是非常强大的类，可以存储词语和句子的参考资料和关系。
+- **不到最后就不要把结果转换成字符串**：如果你的应用需要输出字符串，确保到了最后才转换doc实例。 如果太早转换的话你就会丢失所有词符之间的关系。
+- **尽可能使用词符属性**，比如用token.i来表示词符的索引
+:::
+___
+## 2.3 词向量和语义相似度
+### 2.3.1 如何比较相似度
+- spaCy能够对==文档doc、跨度span或者单个的词符token=={.info}中的其中两个实例进行相似度判断。
+- 通过Doc、Token和Span实例的 ==.similarity()=={.info}方法
+- 其中，参数为另一个实例，返回值为一个0到1之间的浮点数，这个浮点数代表了两个实例之间的相似度。
+::: warning
+要计算相似度，我们必须需要一个**比较大的**含有词向量的spaCy流程
+- 可以用中等的英文流程：en_core_web_md（名字后面是"md"）
+- 可以用大的英文流程：en_core_web_lg （名字后面是"lg"）
+- 不可以用小流程：en_core_web_sm 
+::: 
+
+举个栗子：
+```python
+# 读取一个有词向量的较大流程
+nlp = spacy.load("en_core_web_md")
+
+# 1. 比较两个文档doc
+doc1 = nlp("I like fast food")
+doc2 = nlp("I like pizza")
+
+# [!code word:"doc1.similarity(doc2)"]
+print(doc1.similarity(doc2))
+
+# 2. 比较两个词符token
+doc = nlp("I like pizza and pasta")
+token1 = doc[2]
+token2 = doc[4]
+
+# [!code word:"token1.similarity(token2)"]
+print(token1.similarity(token2))
+
+# 3. 比较一篇文章doc和一个词符token
+doc = nlp("I like pizza")
+token = nlp("soap")[0]
+
+# [!code word:"doc.similarity(token)"]
+print(doc.similarity(token))
+
+# 4. 比较一个跨度span和一篇文档doc
+span = nlp("I like pizza and pasta")[2:5]
+doc = nlp("McDonalds sells burgers")
+
+# [!code word:"span.similarity(doc)"]
+print(span.similarity(doc))
+
+```
+::: details OUTPUT
+1. 模型给出了一个相对高的相似度分数：0.8627204117787385  
+2. 相似度分数也相对较高：0.7369546  
+3. 模型认为这两个实例差别比较大：0.32531983166759537  
+4. 模型认为这两个是比较相似的：0.619909235817623
+:::
+
+---
+### 2.3.2 判断机制
+- 相似度是通过**词向量**计算的
+- 词向量是**一个词汇的多维度的语义表示**。
+- 词向量是用诸如Word2Vec的算法在大规模语料上面生成的。当然，词向量可以是spaCy流程的一部分。
+- 默认spaCy会返回两个向量的**余弦相似度**，但有需要时我们也可以替换为其它计算相似度的方法。
+- 一个包含了多个词符的实例，比如Doc和Span，默认的向量值的计算方法是**其中所有词符向量的平均值**。
+- 因此，短语的向量表示要优于长篇文档，因为后者含有很多不相关的词
+- 通过==token.vector=={.info}获取向量
+    ```python
+    # 导入一个含有词向量的较大的流程
+    nlp = spacy.load("en_core_web_md")
+
+    doc = nlp("I have a banana")
+    # 通过token.vector属性获取向量
+    print(doc[3].vector) # 对于"banana"，将获得一个300维的向量
+    ```
+    ::: details OUTPUT
+    [2.02280000e-01,  -7.66180009e-02,   3.70319992e-01,
+    3.28450017e-02,  -4.19569999e-01,   7.20689967e-02,
+    -3.74760002e-01,   5.74599989e-02,  -1.24009997e-02,
+    5.29489994e-01,  -5.23800015e-01,  -1.97710007e-01,
+    -3.41470003e-01,   5.33169985e-01,  -2.53309999e-02,
+    1.73800007e-01,   1.67720005e-01,   8.39839995e-01,
+    5.51070012e-02,   1.05470002e-01,   3.78719985e-01,
+    2.42750004e-01,   1.47449998e-02,   5.59509993e-01,
+    1.25210002e-01,  -6.75960004e-01,   3.58420014e-01,
+    -4.00279984e-02,   9.59490016e-02,  -5.06900012e-01,
+    -8.53179991e-02,   1.79800004e-01,   3.38669986e-01,
+    ...
+    :::
+---
+### 2.3.3 相似度使用注意
+- 判断相似度对很多种不同的应用都很有帮助。比如基于用户的阅读历史来推荐相似的文章。 相似度还可以帮助标记重复内容，比如在线平台里面的帖子。
+- 然而我们要明确知道并**没有一个绝对客观的定义来判断什么是相似的，什么不是**
+- 这要决定于实际场景和所支持的应用是要做什么。
+- 我们看一个例子：
+    - spaCy默认的词向量会对"I like cats"和"I hate cats"这两句给出<u>非常高的相似度分数</u>(0.95)。这是有道理的，因为两个文本都在讲关于猫的看法。
+    - 但在另一个应用场景里，你可能希望这两句话是*非常不同*的，因为它们的看法是完全相反的。
+
+---
+## 2.4 流程和规则的结合
+我们应该学会如何**将统计模型的预测结果与规则系统结合使用**，因为这是自然语言处理工具箱里面最强大的方法之一。
+### 2.4.1 统计模型和规则系统的区别
+|   |  统计模型   | 规则系统  |
+|  :----:  |  :----:  | :----:  |
+| 应用场景 | 	需要根据例子来*泛化*的应用 | *有限个*例子组成的字典 |
+| 真实范例 | 产品名、人名、主语宾语关系 [+model] | 世界上的国家、城市、药品名、狗的种类 |
+| spaCy功能 | 实体识别器、依存句法识别器、词性标注器 | 分词器, Matcher, PhraseMatcher|
+
+[+model]:
+    通过已有的人名例子，判断一段文本中的几个词符是否是人名
+
+---
+### 2.4.2 高效短语匹配：PhraseMatcher
+短语匹配器phrase matcher是另一个在数据中查找词语序列的非常有用的工具，短语匹配器也是在文本中做关键词查询，但不同于仅仅寻找字符串，短语匹配器可以**直接读取语义中的词符**。  
+与Matcher相比，其特点如下：
+- 将Doc实例作为模板
+- 比Matcher更快更高效
+- 适用于大规模词表的匹配
+
+```python,
+# 和matcher一样从spacy.matcher中导入
+from spacy.matcher import PhraseMatcher
+
+matcher = PhraseMatcher(nlp.vocab)
+
+# 传进一个Doc实例而不是字典列表作为模板
+pattern = nlp("Golden Retriever") # [!code highlight]
+matcher.add("DOG", [pattern]) # [!code highlight]
+doc = nlp("I have a Golden Retriever")
+
+# 遍历匹配结果
+for match_id, start, end in matcher(doc):
+    # 获取匹配到的span
+    span = doc[start:end]
+    print("Matched span:", span.text)
+```
+::: details OUTPUT
+Matched span: Golden Retriever
 :::
