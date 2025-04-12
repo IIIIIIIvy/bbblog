@@ -374,7 +374,7 @@ doc = nlp("我买个肉夹馍。我还要买凉皮。")
 买个肉夹馍  
 买凉皮
 :::
-___
+
 ## 2. 使用spaCy进行大规模数据分析
 ### 2.1 数据结构 (1): Vocab, Lexemes和StringStore
 #### 2.1.1 Vocab & StringStore：词汇表，字符串库
