@@ -175,3 +175,200 @@ for ent in doc.ents:# [!code word:label_]
 十亿美金 MONEY  
 英国 GPE  
 :::
+
+
+### 1.3 基于规则的匹配抽取matcher
+#### 1.3.1 与正则表达式的差别
+1. 作用对象不同：
+    正则表达式作用在字符串上，而matcher是在Doc和Token
+2. 搜索对象不同：
+    正则表达式搜索目标字符串，而matcher不仅可以搜索文本，还**可以搜索其它的词法属性**。
+    甚至可以直接调用模型的预测结果来写规则。
+3. 举个例子，我们可以寻找那些是动词而不是名词的"duck"词汇（"duck"名词意思是鸭子，而动词是闪避的意思）
+
+#### 1.3.2 匹配的模板
+匹配的模板是一些 ==list=={.info}，list的每一个元素是一个==dict=={.info}。 每个dict代表一个词符，键值是==词符属性名=={.info}，映射到==对应的目标值上面=={.info}。
+
+模板示例：
+1. 匹配词符的完全一致的文字
+```python
+# 找两个文本为"iPhone"和"X"的词符
+# [!code word:TEXT]
+[{"TEXT": "iPhone"}, {"TEXT": "X"}]
+```
+2. 匹配词汇属性
+```python
+# 找两个小写形式为"iphone"和"x"的词符
+# [!code word:LOWER]
+[{"LOWER": "iphone"}, {"LOWER": "x"}]
+```
+3. 匹配任意的词符属性
+```python
+# 找一个词根为"buy"且后面为名词的词符
+# 词根是词的基础形式，所以这个模板会匹配到诸如"buying milk"或者"bought flowers"这样的短语
+# [!code word:LEMMA]
+[{"LEMMA": "buy"}, {"POS": "NOUN"}]
+```
+
+#### 1.3.3 使用示例
+:::: steps
+1. 从spacy.matcher中导入matcher  
+```python
+from spacy.matcher import Matcher
+```
+2. 读取一个流程创建nlp实例  
+3. 用流程分享出的vocab初始化matcher  
+```python
+matcher = Matcher(nlp.vocab)
+```
+4. 通过matcher.add方法**给matcher加入模板**  
+第一个参数是唯一的ID用来识别匹配的是哪一个模板，第二个参数是一个模板的列表  
+5. 处理目标文本，并在得到的doc实例中调用matcher进行匹配
+```python 
+doc = nlp("...")
+matches = matcher(doc)
+```
+6. 此时会返回一个**每个元素是一个元组(tuple)的列表**：每个元组由**三个值**构成：匹配到的模板名的ID，匹配到的跨度的起始和终止索引。  
+::::
+
+##### 1.3.3.1 匹配词符的完全一致的文字
+```python
+import spacy
+
+# 导入Matcher
+# [!code word:import Matcher]
+from spacy.matcher import Matcher
+
+# 读取一个流程，创建nlp实例
+nlp = spacy.load("zh_core_web_sm")
+
+# 用模型分享出的vocab初始化matcher
+matcher = Matcher(nlp.vocab) # [!code highlight]
+
+# 给matcher加入模板
+# 以匹配词符的完全一致的文字为例
+pattern = [{"TEXT": "iPhone"}, {"TEXT": "X"}]
+matcher.add("IPHONE_PATTERN", [pattern])
+
+# 处理文本
+doc = nlp("即将上市的iPhone X发布日期被泄露了")
+
+# 在doc上面调用matcher
+# [!code word:matcher]
+matches = matcher(doc) 
+
+# 遍历所有的匹配结果
+for match_id, start, end in matches:
+    # 获取匹配的跨度
+    matched_span = doc[start:end]
+    print(matched_span.text)
+```
+::: details OUTPUT
+iPhone X
+:::
+
+##### 1.3.3.2 匹配词汇属性
+```python
+import spacy
+
+# 导入Matcher
+# [!code word:import Matcher]
+from spacy.matcher import Matcher
+
+# 读取一个流程，创建nlp实例
+nlp = spacy.load("zh_core_web_sm")
+
+# 用模型分享出的vocab初始化matcher
+matcher = Matcher(nlp.vocab) # [!code highlight]
+
+# 给matcher加入模板
+# 匹配词汇属性：一个只含有数字的词符；三个匹配到"国际", "足联"和"世界杯"的词符；以及一个标点符号词符。
+pattern = [ # [!code focus:<7>]
+    {"IS_DIGIT": True},
+    {"LOWER": "国际"},
+    {"LOWER": "足联"},
+    {"LOWER": "世界杯"},
+    {"IS_PUNCT": True}
+] 
+matcher.add("IPHONE_PATTERN", [pattern])
+
+# 处理文本
+doc = nlp("2018国际足联世界杯：法国队赢了！")# [!code focus]
+
+# 在doc上面调用matcher
+# [!code word:matcher]
+matches = matcher(doc) 
+
+# 遍历所有的匹配结果
+for match_id, start, end in matches:
+    # 获取匹配的跨度
+    matched_span = doc[start:end]
+    print(matched_span.text)
+```
+::: details OUTPUT
+2018国际足联世界杯：
+:::
+
+或：
+```python
+import spacy
+
+# 导入Matcher
+# [!code word:import Matcher]
+from spacy.matcher import Matcher
+
+# 读取一个流程，创建nlp实例
+nlp = spacy.load("zh_core_web_sm")
+
+# 用模型分享出的vocab初始化matcher
+matcher = Matcher(nlp.vocab) # [!code highlight]
+
+# 给matcher加入模板
+# 匹配词汇属性：一个动词，其中词根是"喜欢"，后面跟着一个名词。
+pattern = [# [!code focus:<4>]
+    {"LEMMA": "喜欢", "POS": "VERB"},
+    {"POS": "NOUN"}
+]
+matcher.add("IPHONE_PATTERN", [pattern])
+
+# 处理文本
+doc = nlp("我喜欢狗但我更喜欢猫。")# [!code focus]
+
+# 在doc上面调用matcher
+# [!code word:matcher]
+matches = matcher(doc) 
+
+# 遍历所有的匹配结果
+for match_id, start, end in matches:
+    # 获取匹配的跨度
+    matched_span = doc[start:end]
+    print(matched_span.text)
+```
+::: details OUTPUT
+喜欢狗  
+喜欢猫
+:::
+
+##### 1.3.3.3 使用运算符和量词
+使用运算符和量词来定义**一个词符应该被匹配几次**。 我们可以在目标词符后用"OP"这个关键词来添加它们。
+|  例子   | 说明  |
+|  :----:  | :----:  |
+| {"OP": "!"}  | 否定: 0次匹配 |
+| {"OP": "?"}  | 可选: 0次或1次匹配 |
+| {"OP": "+"}  | 1次或更多次匹配 |
+| {"OP": "*"}  | 0次或更多次匹配 |
+```python
+# 这个模板会匹配到一个词根为"买"的词符，一个可选的数词和一个名词。
+pattern = [
+    {"LEMMA": "买"},
+    {"POS": "NUM", "OP": "?"},  # 可选: 匹配0次或者1次
+    {"POS": "NOUN"}
+]
+```
+```python
+doc = nlp("我买个肉夹馍。我还要买凉皮。")
+```
+::: details OUTPUT
+买个肉夹馍  
+买凉皮
+:::
