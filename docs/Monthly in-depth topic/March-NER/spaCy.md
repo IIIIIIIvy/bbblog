@@ -75,11 +75,11 @@ print("like_num:", [token.like_num for token in doc])
 ```
 
 ::: details OUTPUT
-Index:    [0, 1, 2, 3, 4, 5, 6]
-Text:     ['这个', '肉夹馍', '花', '了', '￥', '5', '。']
-is_alpha: [True, True, True, True, False, False, False]
-is_punct: [False, False, False, False, False, False, True]
-like_num: [False, False, False, False, False, True, False]
+Index:    [0, 1, 2, 3, 4, 5, 6]  
+Text:     ['这个', '肉夹馍', '花', '了', '￥', '5', '。']  
+is_alpha: [True, True, True, True, False, False, False]  
+is_punct: [False, False, False, False, False, False, True]  
+like_num: [False, False, False, False, False, True, False]  
 :::
 
 - **i**是原始文本中的**词符索引值**。
@@ -119,7 +119,7 @@ nlp = spacy.load("zh_core_web_sm")
 - 配置文件
 
 #### 1.2.3 词性标注
-对处理后的文本得到的词符，可以通过==.pos_=={.info}属性读取其词性标注的结果。
+对处理后的文本得到的词符，可以通过 ==.pos_=={.info}属性读取其词性标注的结果。
 ```python
 import spacy
 
@@ -160,7 +160,7 @@ for token in doc: // [!code word:.dep_]
 肉夹馍 NOUN dobj 吃
 :::
 #### 1.2.5 命名实体识别
-通过==doc.ents=={.info}，返回一个<u>Span实例</u>的遍历器；可以通过==.label_=={.info}属性读取模型预测出的所有命名实体以及**实体标注**。
+通过 ==doc.ents=={.info}，返回一个<u>Span实例</u>的遍历器；可以通过 ==.label_=={.info}属性读取模型预测出的所有命名实体以及**实体标注**。
 ```python
 # 处理文本
 doc = nlp("微软准备用十亿美金买下这家英国的创业公司。")

@@ -92,6 +92,13 @@ export default defineUserConfig({
       // twoslash: true, // 启用 twoslash
       // whitespace: true, // 启用 空格/Tab 高亮
       lineNumbers: true, // 启用行号
+      notationDiff: true,
+      notationErrorLevel: true,
+      notationFocus: true,
+      notationHighlight: true,
+      notationWordHighlight: true,
+      highlightLines: true,
+      collapsedLines: false,
     },
     
 
