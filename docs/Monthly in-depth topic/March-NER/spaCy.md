@@ -89,7 +89,17 @@ is_punct: [False, False, False, False, False, False, True]
 
 like_num: [False, False, False, False, False, True, False]
 :::
+::: details OUTPUT
+Index:    [0, 1, 2, 3, 4, 5, 6]
 
+Text:     ['这个', '肉夹馍', '花', '了', '￥', '5', '。']
+
+is_alpha: [True, True, True, True, False, False, False]
+
+is_punct: [False, False, False, False, False, False, True]
+
+like_num: [False, False, False, False, False, True, False]
+:::
 - **i**是原始文本中的**词符索引值**。
 - **text**返回词符的**文本**。
 - **is_alpha，is_punct和like_num**都会*返回一个布尔值*，**检测词符是否有字母表字符组成、 是否是标点符号或者是否代表了一个数字**；举个例子，一个包含了1和0的词符"10"， 或者一个包含了T,E,N三个字母的词组"ten"。
