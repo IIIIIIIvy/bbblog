@@ -130,16 +130,16 @@ nlp = spacy.load("zh_core_web_sm")
 doc = nlp("我吃了个肉夹馍")
 
 # 遍历词符
-for token in doc:// [!code word:.pos_]
+for token in doc: # [!code word:pos_]
     # Print the text and the predicted part-of-speech tag
     print(token.text, token.pos_)
 ```
 ::: details OUTPUT
-我 PRON
-吃 VERB
-了 PART
-个 NUM
-肉夹馍 NOUN
+我 PRON  
+吃 VERB  
+了 PART  
+个 NUM  
+肉夹馍 NOUN  
 :::
 #### 1.2.4 依存关系解析
 依存关系，即词与词之间的关系。比如一个词是某一个句子或者物体的主语。
@@ -149,15 +149,15 @@ for token in doc:// [!code word:.pos_]
 ==.head=={.info}属性返回<u>句法头词符</u>。你可以认为这是词在句子中所依附的母词符。
 
 ```python
-for token in doc: # [!code word:.dep_]
+for token in doc: # [!code word:dep_]
     print(token.text, token.pos_, token.dep_, token.head.text)
 ```
 ::: details OUTPUT
-我 PRON nsubj 吃
-吃 VERB ROOT 吃
-了 PART aux:asp 吃
-个 NUM nummod 肉夹馍
-肉夹馍 NOUN dobj 吃
+我 PRON nsubj 吃  
+吃 VERB ROOT 吃  
+了 PART aux:asp 吃  
+个 NUM nummod 肉夹馍  
+肉夹馍 NOUN dobj 吃  
 :::
 #### 1.2.5 命名实体识别
 通过 ==doc.ents=={.info}，返回一个<u>Span实例</u>的遍历器；可以通过 ==.label_=={.info}属性读取模型预测出的所有命名实体以及**实体标注**。
@@ -166,12 +166,12 @@ for token in doc: # [!code word:.dep_]
 doc = nlp("微软准备用十亿美金买下这家英国的创业公司。")
 
 # 遍历识别出的实体
-for ent in doc.ents:# [!code word:ent]
+for ent in doc.ents:# [!code word:label_]
     # 打印实体文本及其标注
     print(ent.text, ent.label_)
 ```
 ::: details OUTPUT
-微软 ORG
-十亿美金 MONEY
-英国 GPE
+微软 ORG  
+十亿美金 MONEY  
+英国 GPE  
 :::
