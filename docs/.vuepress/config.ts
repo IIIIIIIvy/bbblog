@@ -89,7 +89,7 @@ export default defineUserConfig({
      */
     codeHighlighter: {
       themes: { light: 'vitesse-light', dark: 'vitesse-dark' },
-      twoslash: true, // 启用 twoslash
+      // twoslash: true, // 启用 twoslash
       // whitespace: true, // 启用 空格/Tab 高亮
       lineNumbers: true, // 启用行号
     },
