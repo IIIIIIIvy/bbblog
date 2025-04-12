@@ -87,7 +87,7 @@ like_num: [False, False, False, False, False, True, False]
 - **is_alpha，is_punct和like_num**都会*返回一个布尔值*，**检测词符是否有字母表字符组成、 是否是标点符号或者是否代表了一个数字**；举个例子，一个包含了1和0的词符"10"， 或者一个包含了T,E,N三个字母的词组"ten"。
 - 这些属性也被叫做词汇属性：他们仅仅代表了*词典中元素的特性，而与词符所在的语义情境无关。*
 
-
+---
 ### 1.2 训练流程
 #### 1.2.1 流程的定义
 很多非常有趣的分析是**基于语境**的： 比如一个词是否是动词，或者文本的一段跨度是否是人名。
@@ -176,7 +176,7 @@ for ent in doc.ents:# [!code word:label_]
 英国 GPE  
 :::
 
-
+---
 ### 1.3 基于规则的匹配抽取matcher
 #### 1.3.1 与正则表达式的差别
 1. 作用对象不同：
@@ -213,21 +213,21 @@ for ent in doc.ents:# [!code word:label_]
 #### 1.3.3 使用示例
 :::: steps
 1. 从spacy.matcher中导入matcher  
-```python
-from spacy.matcher import Matcher
-```
+    ```python
+    from spacy.matcher import Matcher
+    ```
 2. 读取一个流程创建nlp实例  
 3. 用流程分享出的vocab初始化matcher  
-```python
-matcher = Matcher(nlp.vocab)
-```
+    ```python
+    matcher = Matcher(nlp.vocab)
+    ```
 4. 通过matcher.add方法**给matcher加入模板**  
 第一个参数是唯一的ID用来识别匹配的是哪一个模板，第二个参数是一个模板的列表  
 5. 处理目标文本，并在得到的doc实例中调用matcher进行匹配
-```python 
-doc = nlp("...")
-matches = matcher(doc)
-```
+    ```python 
+    doc = nlp("...")
+    matches = matcher(doc)
+    ```
 6. 此时会返回一个**每个元素是一个元组(tuple)的列表**：每个元组由**三个值**构成：匹配到的模板名的ID，匹配到的跨度的起始和终止索引。  
 ::::
 
@@ -236,7 +236,7 @@ matches = matcher(doc)
 import spacy
 
 # 导入Matcher
-# [!code word:import Matcher]
+# [!code word:"import Matcher"]
 from spacy.matcher import Matcher
 
 # 读取一个流程，创建nlp实例
@@ -283,7 +283,7 @@ matcher = Matcher(nlp.vocab) # [!code highlight]
 
 # 给matcher加入模板
 # 匹配词汇属性：一个只含有数字的词符；三个匹配到"国际", "足联"和"世界杯"的词符；以及一个标点符号词符。
-pattern = [ # [!code focus:<7>]
+pattern = [ # [!code focus:7]
     {"IS_DIGIT": True},
     {"LOWER": "国际"},
     {"LOWER": "足联"},
@@ -325,7 +325,7 @@ matcher = Matcher(nlp.vocab) # [!code highlight]
 
 # 给matcher加入模板
 # 匹配词汇属性：一个动词，其中词根是"喜欢"，后面跟着一个名词。
-pattern = [# [!code focus:<4>]
+pattern = [# [!code focus:4]
     {"LEMMA": "喜欢", "POS": "VERB"},
     {"POS": "NOUN"}
 ]
@@ -353,10 +353,10 @@ for match_id, start, end in matches:
 使用运算符和量词来定义**一个词符应该被匹配几次**。 我们可以在目标词符后用"OP"这个关键词来添加它们。
 |  例子   | 说明  |
 |  :----:  | :----:  |
-| {"OP": "!"}  | 否定: 0次匹配 |
-| {"OP": "?"}  | 可选: 0次或1次匹配 |
-| {"OP": "+"}  | 1次或更多次匹配 |
-| {"OP": "*"}  | 0次或更多次匹配 |
+| {"OP": "!"} | 否定: 0次匹配 |
+| {"OP": "?"} | 可选: 0次或1次匹配 |
+| {"OP": "+"} | 1次或更多次匹配 |
+| {"OP": "*"} | 0次或更多次匹配 |
 ```python
 # 这个模板会匹配到一个词根为"买"的词符，一个可选的数词和一个名词。
 pattern = [
