@@ -238,7 +238,7 @@ ___
 import spacy
 
 # 导入Matcher
-# [!code word:"import Matcher"]
+# [!code word:import Matcher]
 from spacy.matcher import Matcher
 
 # 读取一个流程，创建nlp实例
@@ -494,7 +494,7 @@ nlp = spacy.load("en_core_web_md")
 doc1 = nlp("I like fast food")
 doc2 = nlp("I like pizza")
 
-# [!code word:"doc1.similarity(doc2)"]
+# [!code word:doc1.similarity(doc2)]
 print(doc1.similarity(doc2))
 
 # 2. 比较两个词符token
@@ -502,21 +502,21 @@ doc = nlp("I like pizza and pasta")
 token1 = doc[2]
 token2 = doc[4]
 
-# [!code word:"token1.similarity(token2)"]
+# [!code word:token1.similarity(token2)]
 print(token1.similarity(token2))
 
 # 3. 比较一篇文章doc和一个词符token
 doc = nlp("I like pizza")
 token = nlp("soap")[0]
 
-# [!code word:"doc.similarity(token)"]
+# [!code word:doc.similarity(token)]
 print(doc.similarity(token))
 
 # 4. 比较一个跨度span和一篇文档doc
 span = nlp("I like pizza and pasta")[2:5]
 doc = nlp("McDonalds sells burgers")
 
-# [!code word:"span.similarity(doc)"]
+# [!code word:span.similarity(doc)]
 print(span.similarity(doc))
 
 ```
@@ -677,7 +677,7 @@ Matched span: Golden Retriever
 - 最后，一旦组件被注册后，我们就可以用**nlp.add_pipe**来将其加入到流程中。这个方法需要至少一个参数：**组件名**。
 ```python
 from spacy.language import Language
-# [!code word:"@Language.component"]
+# [!code word:@Language.component]
 @Language.component("custom_component")
 def custom_component_function(doc):
     # 对doc做一些处理
@@ -732,7 +732,7 @@ Doc length: 4
 定制化属性，允许我们添加任何的元数据到doc、token和span中，从而更具有定制性。这些元数据可以一次性添加，也可以动态被计算出来。
 - 定制化属性通过 ==._=={.info}（点加下划线）属性来读取。这样我们可以很清楚看到这些属性是被用户添加的，而不是spaCy的内建属性，如token.text。
     ```python
-    # [!code word:"._."]
+    # [!code word:._.]
     doc._.title = "My document"
     token._.is_color = True
     span._.has_color = False
@@ -744,7 +744,7 @@ Doc length: 4
     from spacy.tokens import Doc, Token, Span
 
     # 在Doc、Token和Span上设置扩展属性
-    # [!code word:"set_extension"]
+    # [!code word:set_extension]
     Doc.set_extension("title", default=None)
     Token.set_extension("is_color", default=False)
     Span.set_extension("has_color", default=False)
@@ -789,7 +789,7 @@ def get_is_color(token):
 Token.set_extension("is_color", getter=get_is_color)
 
 doc = nlp("天空是蓝色的。")
-# [!code word:"._.is_color"]
+# [!code word:._.is_color]
 print(doc[2]._.is_color, "-", doc[2].text)
 
 # --------- 2. For span -----------------
@@ -803,7 +803,7 @@ def get_has_color(span):
 Span.set_extension("has_color", getter=get_has_color)
 
 doc = nlp("天空是蓝色的")
-# [!code word:"._.has_color"]
+# [!code word:._.has_color]
 print(doc[1:4]._.has_color, "-", doc[1:4].text)
 print(doc[0:2]._.has_color, "-", doc[0:2].text)
 ```
@@ -833,7 +833,7 @@ def has_token(doc, token_text):
 Doc.set_extension("has_token", method=has_token)
 
 doc = nlp("天空是蓝色的。")
-# [!code word:["._.has_color(",")"]]
+# [!code word:._.has_color( )]
 print(doc._.has_token("蓝色"), "- 蓝色")
 print(doc._.has_token("云朵"), "- 云朵")
 ```
