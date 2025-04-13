@@ -832,7 +832,7 @@ def has_token(doc, token_text):
 Doc.set_extension("has_token", method=has_token)
 
 doc = nlp("天空是蓝色的。")
-# [!code word:._.has_color]
+# [!code word:._.has_token()]
 print(doc._.has_token("蓝色"), "- 蓝色")
 print(doc._.has_token("云朵"), "- 云朵")
 ```
@@ -903,3 +903,167 @@ spaCy允许我们通过**nlp.select_pipes方法**==暂时=={.info}关闭一些�
         doc = nlp(text)
         print(doc.ents)
     ```
+
+## 4. 训练神经网络模型
+考虑如何更新spaCy的统计模型使其能够为特定的使用场景做出定制化。
+### 4.1 训练和更新模型
+#### 4.1.1 模型的训练流程
+spaCy的训练流程如下：
+:::: steps
+1. **初始化**模型权重，使之变为随机值
+2. spaCy调用nlp.update方法**预测**几个例子，看看当前权重的表现
+3. **比较**预测结果和真实标注的标签
+4. **计算**如何调整权重来改善预测结果
+5. **微调**模型权重
+6. 重复步骤 2。  
+
+::::
+![alt text](train_process.png)
+在训练过程中，我们通常要**多次遍历**数据进行训练，直到模型不再变得更好。
+
+#### 4.1.2 生成训练语料：以训练实体识别器为例
+以实体识别器的训练为例，首先明白其工作原理：实体识别器读入一个文档，预测其中的短语及其**语境中**的标签。$\rightarrow$ 
+- 这意味着训练数据需要有==文本、包含的实体以及实体的标签=={.info}。
+- 且训练例子需要**带有语境**。
+- 每一个词符只能是某一个实体的一部分。
+
+目标是：教会模型==在相似语境中识别出新的实体=={.info}，就算这些实体并没有在训练数据中出现过。
+```python
+import spacy
+nlp = spacy.blank("zh")
+
+# 创建一个含有实体span的Doc
+# 我们的目标识别对象
+doc1 = nlp("iPhone X就要来了")
+doc1.ents = [Span(doc1, 0, 8, label="GADGET")]
+
+# 创建另一个没有实体span的Doc
+# 让模型知道哪些词 并不是 实体也是非常重要的。
+# 这种情况下，span标注的列表会是空的。
+doc2 = nlp("我急需一部新手机，给点建议吧！")
+
+docs = [doc1, doc2]  # 以此类推...
+```
+准备好训练语料后，**将其分成训练数据和测试数据**。
+- 训练数据：用来==更新=={.info}模型
+- 开发数据：用来==测试=={.info}模型
+```python
+# 通常，对数据随机排序
+random.shuffle(docs)
+
+#这里只是简单的50/50对半分
+train_docs = docs[:len(docs) // 2]
+dev_docs = docs[len(docs) // 2:]
+```
+一般来说，将训练和测试数据保存为**硬盘上的文件**，这样我们就可以读入到spaCy的训练流程中。  
+==DocBin=={.info}是用来有效存储和序列化Doc对象的容器。我们可以用一个**Doc对象的列表**来初始化它，然后调用to_disk方法将其存储为一个二进制文件。这些文件我们一般使用==.spacy作为后缀=={.info}。
+```python
+# 创建和保存一系列的训练文档
+train_docbin = DocBin(docs=train_docs)
+train_docbin.to_disk("./train.spacy")
+# 创建和保存一系列的测试文档
+dev_docbin = DocBin(docs=dev_docs)
+dev_docbin.to_disk("./dev.spacy")
+```
+---
+### 4.2 配置和进行训练
+#### 4.2.1 配置文件config.cfg
+配置文件在spaCy中的作用：
+- 定义了如何初始化nlp对象
+- 包含了关于流程组件和模型实现的所有设定
+- 配置了训练过程和超参数
+- 使我们的训练过程可复现
+
+给一个节选：
+```ini
+[nlp]
+lang = "zh"
+pipeline = ["tok2vec", "ner"]
+batch_size = 1000
+[nlp.tokenizer]
+@tokenizers = "spacy.zh.ChineseTokenizer"
+segmenter = "char"
+[components]
+[components.ner]
+factory = "ner"
+[components.ner.model]
+@architectures = "spacy.TransitionBasedParser.v2"
+hidden_width = 64
+# 以此类推
+```
+如何**生成**它？不需要手写配置文件！
+- spaCy可以自动生成一个默认的配置文件
+- 文档中有可交互的[快速上手](https://spacy.io/usage/training#quickstart)插件
+- 使用spaCy内建的init config命令
+    ```bash
+    $ python -m spacy init config ./config.cfg --lang zh --pipeline ner
+    ```
+    命令说明：
+    - init config: 要运行的命令
+    - config.cfg: 生成的配置文档的输出路径
+    - --lang: 流程的语言类，比如中文是zh
+    - --pipeline: 用逗号分隔的流程组件名称
+
+#### 4.2.2 启动训练
+要训练一个流程，我们需要：
+- config.cfg
+- 训练与测试数据
+
+通过spacy train命令进行训练：
+```bash
+$ python -m spacy train ./config.cfg --output ./output --paths.train train.spacy --paths.dev dev.spacy
+```
+命令说明：
+- train: 要运行的命令
+- config.cfg: 配置文档的路径
+- --output: 保存训练流程的输出路径
+- --paths.train: 覆盖训练数据的路径
+- --paths.dev: 覆盖测试数据的路径
+
+一个训练过程中和结束时我们会看到的屏幕输出的例子:
+![alt text](output_during_training.png)
+要留意最后一列的合成分数。这反映了我们的模型在测试数据中预测正确的准确度。
+训练过程会一直进行直到模型没有进一步的改进空间了，这时程序就会自动退出。
+
+#### 4.2.3 训练结束后
+训练后的输出是一个正常的可读取的spaCy流程，就像其它spaCy提供的训练好的流程一样，比如zh_core_web_sm。并会**将两个流程存储在输出路径中**：
+- **model-last**: 最后训练出的流程
+- **model-best**: 表现最好的训练流程
+
+此时，我们可以把路径传给spacy.load来读取已经训练好的流程，并用它来处理和分析文本了。
+```python
+import spacy
+# [!code word:model-best]
+nlp = spacy.load("/path/to/output/model-best")
+doc = nlp("iPhone 11 vs iPhone 8: 到底有什么区别？")
+print(doc.ents)
+```
+spaCy还支持使用==spacy package=={.info}命令，创建一个包含我们流程的可安装的==Python包=={.info}，从而方便版本控制和部署。
+- 其参数为：生成的流程路径与输出路径
+- 还可以在命令中提供可选的名字和版本号
+- 并生成一个.tar.gz格式的文件，这个文件含有我们流程的Python包
+```bash
+$ python -m spacy package /path/to/output/model-best ./packages --name my_pipeline --version 1.0.0
+```
+在安装这个包时，注意spaCy会自动**把语言代码加到名字中**，所以我们的流程my_pipeline最后就成了zh_my_pipeline。
+```bash
+$ cd ./packages/zh_my_pipeline-1.0.0
+$ pip install dist/zh_my_pipeline-1.0.0.tar.gz
+```
+---
+### 4.3 训练过程中的可能问题及解决方案
+#### 4.3.1 模型“忘记”了东西
+- 问题：已有的模型可能会在新数据上**过拟合**：
+    - 比如，如果我们只是想给模型更新一个"WEBSITE"的类别，模型有可能会*忘记*之前"PERSON"这个类别。
+- 解决方法：**将之前的正确预测结果混合进来**
+    - 我们要训练"WEBSITE"，但我们也把"PERSON"的例子加进来。
+    - 在数据上跑已有的spaCy模型，然后抽取所有其它相关的实体。
+#### 4.3.2 模型不能学会所有东西
+spaCy的模型是基于**本地语境**作出预测，比如对命名实体来说，==目标词符周围的词=={.info}是最重要的。如果基于语境本身就很难做出判断，那模型也很难学得会。
+体现在标签上，标签种类最好**前后一致**，也**不要过于特殊**
+- 问题：
+    - 比如，"CLOTHING"这个类别就要比"ADULT_CLOTHING"和"CHILDRENS_CLOTHING"更好。
+- 解决方法：**仔细计划标签种类**
+    - 选择那些能从**本地语境**中反映出来的类别，且**更通用**的标签要好过更特定的标签
+    - 我们可以在最后用**规则把通用标签转化为特定种类**
+    
