@@ -956,7 +956,7 @@ train_docs = docs[:len(docs) // 2]
 dev_docs = docs[len(docs) // 2:]
 ```
 一般来说，将训练和测试数据保存为**硬盘上的文件**，这样我们就可以读入到spaCy的训练流程中。  
-==DocBin=={.info}是用来有效存储和序列化Doc对象的容器。我们可以用一个**Doc对象的列表**来初始化它，然后调用to_disk方法将其存储为一个二进制文件。这些文件我们一般使用==.spacy作为后缀=={.info}。
+==DocBin=={.info}是用来有效存储和序列化Doc对象的容器。我们可以用一个**Doc对象的列表**来初始化它，然后调用to_disk方法将其存储为一个二进制文件。这些文件我们一般使用 ==.spacy作为后缀=={.info}。
 ```python
 # 创建和保存一系列的训练文档
 train_docbin = DocBin(docs=train_docs)
@@ -1062,8 +1062,7 @@ $ pip install dist/zh_my_pipeline-1.0.0.tar.gz
 spaCy的模型是基于**本地语境**作出预测，比如对命名实体来说，==目标词符周围的词=={.info}是最重要的。如果基于语境本身就很难做出判断，那模型也很难学得会。
 体现在标签上，标签种类最好**前后一致**，也**不要过于特殊**
 - 问题：
-    - 比如，"CLOTHING"这个类别就要比"ADULT_CLOTHING"和"CHILDRENS_CLOTHING"更好。
+    - 比如，"CLOTHING"这个类别就比"ADULT_CLOTHING"和"CHILDRENS_CLOTHING"更好。
 - 解决方法：**仔细计划标签种类**
     - 选择那些能从**本地语境**中反映出来的类别，且**更通用**的标签要好过更特定的标签
     - 我们可以在最后用**规则把通用标签转化为特定种类**
-    
