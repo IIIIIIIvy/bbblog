@@ -677,8 +677,7 @@ Matched span: Golden Retriever
 - 最后，一旦组件被注册后，我们就可以用**nlp.add_pipe**来将其加入到流程中。这个方法需要至少一个参数：**组件名**。
 ```python
 from spacy.language import Language
-# [!code word:@Language.component]
-@Language.component("custom_component")
+@Language.component("custom_component") # [!code highlight]
 def custom_component_function(doc):
     # 对doc做一些处理
     return doc # [!code highlight]
@@ -833,7 +832,7 @@ def has_token(doc, token_text):
 Doc.set_extension("has_token", method=has_token)
 
 doc = nlp("天空是蓝色的。")
-# [!code word:._.has_color( )]
+# [!code word:._.has_color]
 print(doc._.has_token("蓝色"), "- 蓝色")
 print(doc._.has_token("云朵"), "- 云朵")
 ```
@@ -899,7 +898,7 @@ spaCy允许我们通过**nlp.select_pipes方法**==暂时=={.info}关闭一些�
     - 在with代码块之后，**那些被关闭的流程组件会被自动重新启用**。
     ```python 
     # 关闭词性标注器tagger和依存关系标注器parser
-    with nlp.select_pipes(disable=["tagger", "parser"]):
+    with nlp.select_pipes(disable=["tagger", "parser"]): # [!code highlight]
         # 处理文本并打印实体结果
         doc = nlp(text)
         print(doc.ents)
