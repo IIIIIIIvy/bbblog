@@ -424,7 +424,7 @@ print(lexeme.text, lexeme.orth, lexeme.is_alpha)
 #### 2.1.3 三者关系
 Doc包含了<u>语境中的词汇</u>，在这个例子里面就是指"I"、"love"、"coffee"这三个词符 以及它们的词性标注和依存关系。
 每个词符对应一个<u>语素lexeme</u>，里面保存着词汇的<u>哈希ID</u>。 要拿到这个词的文本表示，spaCy要在<u>字符串库</u>里面查找它的哈希值。
-![vocab, lexeme, stringstore](Relationship%20between%20vocab,%20lexeme&stringstore.png)
+![vocab, lexeme, stringstore](Relationship_between_vocab_lexeme&stringstore.png)
 ___
 ### 2.2 数据结构(2)：Doc、Span和Token
 #### 2.2.1 Doc文档实例
@@ -605,3 +605,302 @@ for match_id, start, end in matcher(doc):
 ::: details OUTPUT
 Matched span: Golden Retriever
 :::
+
+## 3. 处理流程
+### 3.1 流程组件
+#### 3.1.1 调用nlp时会发生什么？
+- 首先，应用**分词器**将一段文本的字符串变成一个Doc实例
+- 然后，**一系列的流程组件**会依次作用在这个doc上面。如下图所示，下图中这些组件依次是：
+    - 词性标注器tagger
+    - 依存关系标注器parser
+    - 实体识别器entity recognizer
+- 最后返回被处理过的doc，我们就可以在这个上面开展后续工作了。  
+![alt text](work_process_in_nlp.png)
+
+#### 3.1.2 一些经典的原生的流程组件
+
+| 名字        | 描述           | 创建结果  |
+| :-------------: |:-------------:| :-----:|
+| tagger | 词性标注器 | Token.tag, Token.pos |
+| parser | 依存关系标注器 | Token.dep, Token.head, Doc.sents, Doc.noun_chunks[+parser] |
+| ner | 命名实体识别器 | Doc.ents, Token.ent_iob, Token.ent_type |
+| textcat | 文本分类器 | Doc.cats[+textcat] |
+
+[+parser]:
+    检测句子和基础的名词短语（名词块）
+[+textcat]:
+    适用于整个文本的类别
+::: info
+因为文本的类别往往是特定的，所以**默认文本分类器不包含在任何一个训练好的流程里面**。但我们可以用它来训练自己的系统。
+:::
+
+#### 3.1.3 流程查看
+1. 通过配置文件
+    - 当我们读进一个spaCy的流程包时，其中将包含一些文件和一个==config.cfg=={.info}
+    - 这个配置文件定义了**语种**，**流程**也被依次定义在模型中，用于告诉spaCy应该如何初始化和配置哪些组件
+    - 原生的组件如果要做预测也要需要二进制数据。这些数据都保存在流程包中，当我们读取流程的时候这些数据就被读取到组件中。
+    ![alt text](config_in_model.png)
+2. 通过方法
+- 使用==nlp.pipe_names=={.info}属性，读取当前nlp实例中流程组件的**名字**。
+    ```python
+    print(nlp.pipe_names)
+    ```
+    ::: details OUTPUT
+    ['tok2vec', 'tagger', 'parser', 'ner', 'attribute_ruler', 'lemmatizer']
+    :::
+- 使用==nlp.pipeline=={.info}属性来读取一个**组件名与组件函数[+pipeline_func]构成的元组**的列表。
+    ```python
+    print(nlp.pipeline)
+    ```
+    ::: details OUTPUT
+    [('tok2vec', <spacy.pipeline.Tok2Vec>),  
+    ('tagger', <spacy.pipeline.Tagger>),  
+    ('parser', <spacy.pipeline.DependencyParser>),  
+    ('ner', <spacy.pipeline.EntityRecognizer>),  
+    ('attribute_ruler', <spacy.pipeline.AttributeRuler>),  
+    ('lemmatizer', <spacy.pipeline.Lemmatizer>)]
+    :::
+
+[+pipeline_func]: 
+    组件函数，就是那些作用在doc上面处理文本并设置属性的函数，比如词性标注器或者命名实体识别器。
+---
+### 3.2 定制化流程组件
+定制化流程组件让我们可以在spaCy的流程中加入我们自己的函数。当我们在一段文本上调用nlp时，这些函数就会被调用来完成，比如修改doc为其增加更多数据的任务。
+#### 3.2.1 定制化组件的应用场景
+- 定制化组件允许我们在一段文字上调用nlp时，使得一个自定义函数被自动执行
+- 为文档document和词符token添加**定制化的元数据**
+- **更新原生属性**，比如命名实体识别的结果doc.ents
+#### 3.2.2 如何定制化
+- In reality，一个流程组件就是一个函数或者callable，**它读取一个doc，并对其进行修改和返回，** 作为下一个流程组件的输入。
+因此，我们想要定制化一个流程组件，就是写一个函数。  
+- 当我们完成一个组件，如何让spaCy找到我们的定制组件并调用？我们需要用 **@Language.component装饰器来装饰这个组件**，只需要将其放在函数定义的前一行即可，从而完成这个组件的注册。
+- 最后，一旦组件被注册后，我们就可以用**nlp.add_pipe**来将其加入到流程中。这个方法需要至少一个参数：**组件名**。
+```python
+from spacy.language import Language
+# [!code word:"@Language.component"]
+@Language.component("custom_component")
+def custom_component_function(doc):
+    # 对doc做一些处理
+    return doc # [!code highlight]
+
+nlp.add_pipe("custom_component")
+```
+::: info
+对于nlp.add_pipe方法的参数，说明如下：
+| 参数        | 说明           | 例子  |
+| :------------- |:-------------| :-----|
+| last | 如果为True则加在最后面；默认 | nlp.add_pipe("component", last=True) |
+| first | 如果为True则加在最前面，紧跟在分词器之后 | nlp.add_pipe("component", first=True) |
+| before | 加在指定组件之前	 | nlp.add_pipe("component", before="ner") |
+| after | 加在指定组件[+assignment_component]之后 | nlp.add_pipe("component", after="tagger") |
+
+[+assignment_component]:
+    新组件位置之前或者之后的那个组件**必须存在**，不然spaCy就会报错。
+:::
+
+#### 3.2.3 举例
+```python
+# 创建nlp实例
+nlp = spacy.load("zh_core_web_sm")
+
+# 定义一个定制化组件
+# 用@Language.component装饰器将其注册，起名为"custom_component".
+@Language.component("custom_component")
+def custom_component_function(doc):
+    # 打印doc的长度
+    print("Doc length:", len(doc))
+    # 返回doc
+    return doc # [!code warning]
+
+# 把组件添加到流程的最前面
+nlp.add_pipe("custom_component", first=True)
+
+# 打印流程的组件名
+print("Pipeline:", nlp.pipe_names)
+
+# 处理一段文本
+doc = nlp("这是一个句子。")
+```
+::: details OUTPUT
+Pipeline: ['custom_component', 'tok2vec', 'tagger', 'parser', 'ner', 'attribute_ruler', 'lemmatizer']   # 可以看到定制化组件现在出现在起始位置。这意味着我们处理一个doc 的时候这个组件会先被调用
+
+Doc length: 4
+:::
+
+---
+### 3.3 扩展属性
+定制化属性，允许我们添加任何的元数据到doc、token和span中，从而更具有定制性。这些元数据可以一次性添加，也可以动态被计算出来。
+- 定制化属性通过 ==._=={.info}（点加下划线）属性来读取。这样我们可以很清楚看到这些属性是被用户添加的，而不是spaCy的内建属性，如token.text。
+    ```python
+    # [!code word:"._."]
+    doc._.title = "My document"
+    token._.is_color = True
+    span._.has_color = False
+    ```
+- **使用set_extension方法在全局的Doc、Token或Span上注册**：属性需要注册在从spacy.tokens导入的全局Doc、Token和Span类上。我们用set_extension方法将一个定制化属性注册到Doc、Token和Span上。
+    - set_extension方法的第一个参数是<u>属性名字</u>。在这个例子中这些定制化参数有<u>默认值，也可以被覆盖重写</u>。
+    ```python
+    # 导入全局类
+    from spacy.tokens import Doc, Token, Span
+
+    # 在Doc、Token和Span上设置扩展属性
+    # [!code word:"set_extension"]
+    Doc.set_extension("title", default=None)
+    Token.set_extension("is_color", default=False)
+    Span.set_extension("has_color", default=False)
+    ```
+有三种扩展类别：
+- 特性（Attribute）扩展
+- 属性（Property）扩展
+- 方法（Method）扩展
+
+#### 3.3.1 特性（Attribute）扩展
+特性扩展：设置一个**可被覆盖的默认值。**
+```python
+from spacy.tokens import Token
+
+# 为Token设置一个有默认值的is_color特性，默认值是False
+Token.set_extension("is_color", default=False)
+
+doc = nlp("天空是蓝色的。")
+
+# 覆盖默认扩展特性的值
+doc[2]._.is_color = True
+```
+
+#### 3.3.2 属性（Property）扩展
+属性扩展的工作方式和Python中的属性（property）一样，它们可以定义一个 ==取值器（getter）=={.info} 和一个 ==可选的赋值器（setter）=={.info}。  
+取值器只有**当我们提取属性值的时候才会被调用**。因此，我们可以<u>动态</u>计算属性值，甚至可以考虑到其它定制化属性的值。
+- 取值函数有一个参数：**其对应的实例**。
+- 通过**getter关键字参数**来提供这个函数，从而完成注册扩展。
+- 对于Span而言，==如果我们想给其设置一个拓展属性，大部分时间我们应该用一个带取值函数的属性拓展=={.info}。否则为了设置所有的span值我们需要手动更新*每一个可能出现的span*。
+
+```python
+from spacy.tokens import Token
+
+# --------- 1. For token -----------------
+# 定义取值器函数
+# 取值器的参数应为其对应的实例，在本例中就是Token本身。
+def get_is_color(token):
+    colors = ["红色", "黄色", "蓝色"]
+    return token.text in colors
+
+# 为词符设置有取值器的扩展
+Token.set_extension("is_color", getter=get_is_color)
+
+doc = nlp("天空是蓝色的。")
+# [!code word:"._.is_color"]
+print(doc[2]._.is_color, "-", doc[2].text)
+
+# --------- 2. For span -----------------
+# 定义取值器函数
+# 取值器的参数应为其对应的实例，在本例中是span。
+def get_has_color(span):
+    colors = ["红色", "黄色", "蓝色"]
+    return any(token.text in colors for token in span)
+
+# 为Span设置一个带有取值器getter的扩展
+Span.set_extension("has_color", getter=get_has_color)
+
+doc = nlp("天空是蓝色的")
+# [!code word:"._.has_color"]
+print(doc[1:4]._.has_color, "-", doc[1:4].text)
+print(doc[0:2]._.has_color, "-", doc[0:2].text)
+```
+::: details OUTPUT
+True - 蓝色  
+True - 是蓝色的  
+False - 天空是
+:::
+
+#### 3.3.3 方法（Method）扩展
+方法扩展使扩展属性变为一个可调用的方法。  
+我们可以向方法扩展中传入一个或多个参数，然后基于比如某一个特定 的参数或者设定，<u>动态计算属性值</u>。
+还可以和前面的定制化组件结合起来。
+
+```python
+from spacy.tokens import Doc
+
+# 定义含有参数的方法
+# 本例中，方法函数检查doc中是否含有一个给定文本的词符
+# 方法的第一个参数永远是实例本身，在本例中是doc。
+# 其它所有的函数参数都是这个方法扩展的参数，在这里这个参数就是token_text。
+def has_token(doc, token_text):
+    in_doc = token_text in [token.text for token in doc]
+    return in_doc
+
+# 在doc上设置方法扩展
+Doc.set_extension("has_token", method=has_token)
+
+doc = nlp("天空是蓝色的。")
+# [!code word:["._.has_color(",")"]]
+print(doc._.has_token("蓝色"), "- 蓝色")
+print(doc._.has_token("云朵"), "- 云朵")
+```
+::: details OUTPUT
+True - 蓝色  
+False - 云朵
+:::
+
+---
+### 3.4 规模化和性能
+考虑如何让spaCy流程可以运作得尽可能快速，并且能够高效处理大规模语料。
+#### 3.4.1 处理大规模语料
+当我们需要对很多段文本进行处理并创建一系列的Doc实例时，考虑使用**nlp.pipe方法**，可以极大地加速这一过程。
+- <u>将大规模语料存储在list里</u>，并传入nlp.pipe方法中
+- nlp.pipe方法会使用<u>流模式</u>来处理文本生成Doc实例
+- 这种方法大大快过在每段文本上调用nlp，原因是它对目标文本集进行了打包。
+- nlp.pipe是一个**产生Doc实例的生成器**，因此如果想要获得**doc的列表**，记住要**对其调用list方法。**
+```python 
+# bad method
+docs = [nlp(text) for text in LOTS_OF_TEXTS] # [!code --]
+# good method
+# [!code word:list]
+docs = list(nlp.pipe(LOTS_OF_TEXTS)) # [!code ++]
+```
+- nlp.pipe支持传入形式为(text, context)的**文本/语境元组**，我们只需要设置**as_tuples为True。**
+- 该方法会生成一系列(doc, context)的**文档/语境元组**。
+- 当我们要把doc关联到一些元数据时这种方法就很有用，比如我们想要添加文本对应的ID，或是一个页码。
+- 或者可以把语境元数据加入到doc的定制化属性中
+```python
+from spacy.tokens import Doc
+
+Doc.set_extension("id", default=None)
+Doc.set_extension("page_number", default=None)
+
+data = [
+    ("这是一段文本", {"id": 1, "page_number": 15}),
+    ("以及另一段文本", {"id": 2, "page_number": 16}),
+]
+
+for doc, context in nlp.pipe(data, as_tuples=True):
+    print(doc.text, context["page_number"])
+    doc._.id = context["id"]
+    doc._.page_number = context["page_number"]
+```
+::: details OUTPUT
+这是一段文本 15
+以及另一段文本 16
+:::
+#### 3.4.2 只用部分组件
+有时候我们已经读入了一个模型来做一些其它的处理，但是对某一个特定的文本我们**只需要运行分词器**。此时，我们**没有必要跑完整个流程**，因为这会比较慢，我们还会拿到很多我们并不需要的模型预测结果。
+1. 如果我们只想用分词器
+如果我们只是需要一个分词过的Doc实例，我们可以用**nlp.make_doc方法**读入一段文本并返回一个doc。  
+这也是spaCy后台所做的事情：流程组件在被调用之前，nlp.make_doc会先把文本变成一个doc。
+    ```python
+    doc = nlp.make_doc("Hello world!")
+    ```
+2. 关闭流程组件
+spaCy允许我们通过**nlp.select_pipes方法**==暂时=={.info}关闭一些流程组件。
+    - nlp.select_pipes方法需要一个关键词参数：enable或者disable，可以定义一个包含了需要关闭的一个或多个流程组件的名字的列表。 
+    - 比如我们只想要用实体识别器来处理文档，我们就可以暂时关闭词性标注器tagger和依存关系标注器parser。
+    - **通过with代码块使用这个方法**。
+    - 在with代码块里面，spaCy只会跑未被关闭的剩余组件。
+    - 在with代码块之后，**那些被关闭的流程组件会被自动重新启用**。
+    ```python 
+    # 关闭词性标注器tagger和依存关系标注器parser
+    with nlp.select_pipes(disable=["tagger", "parser"]):
+        # 处理文本并打印实体结果
+        doc = nlp(text)
+        print(doc.ents)
+    ```
