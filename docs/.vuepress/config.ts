@@ -144,6 +144,7 @@ export default defineUserConfig({
         mark: true,       // 启用图片标记
         size: true,       // 启用图片大小
       },
+      timeline:true,
       // include: true,      // 在 Markdown 文件中导入其他 markdown 文件内容
       // imageSize: 'local', // 启用 自动填充 图片宽高属性，避免页面抖动
     },
