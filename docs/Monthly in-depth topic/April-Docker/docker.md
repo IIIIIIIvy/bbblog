@@ -3,37 +3,34 @@ title: Docker
 ---
 
 ## 1. Introduction
-### 1.1 Container
-#### 1.1.1 What is a Container?
+### 1.1 What is a Container?
 - In the <b>physical world</b>, container is a standardized unit of storage in the shipping industry. <u>Standardized containers provide a consistent, predictable unit of storage</u> that can be easily transferred to truck or rail transportation. By focusing on containers instead of individual pieces of cargo, we have improved efficiency,increased productivity, and reduced costs for consumers.This is a great example of using <u>abstraction</u> to increase agility.
 - While in the <b>virtual world</b>, a container is <u>a standardized unit of software</u> designed to run quickly and reliably on any computing environment that is running the containerization platform.
 - Containers are a form of virtualization that is implemented at the operating system level. ==Containers are lightweight, standalone packages that include everything needed to run an application=={!info}, such as code, runtime, system tools, system libraries, and settings.
 - A single server can host <u>several containers that all share the underlying host system's OS Kernel</u>. These containers might be services that are part of a larger enterprise application, or they might be separate applications that are running in their isolated environment.
 
-#### 1.1.2 How do Containers differ from other forms of virtualization?
-##### 1.1.2.1 History
-::: timeline placement="between"
-- Bare-metal servers
-  placement=right
+### 1.2 History of Virtualization
+<u>Technical maturity is often associated with increasec levels of abstraction.</u> 
 
-  <u>Technical maturity is often associated with increasec levels of abstraction.</u> 
-  - workstyle: With bare metal servers the architectural layers, such as the infrastructure and application software layers are built. For example: you install an operating system on top of your server hardware, install any shared libraries on top of that operating system, and then install your applications that use those libraries. 
-  - downside: 
+#### 1.2.1 Bare-metal servers
+Bare metal refers to ==a physical computer=={.info}, specifically a server, that has one and only one operating system. <u>The distinction is important in modern computing because many, if not most, servers are virtual machines.</u> A physical server is typically a fairly large computer with powerful hardware built-in. 
+Installing an operating system and running applications directly on that physical hardware, without virtualization, is referred to as running on “bare metal.”
+- workstyle: With bare metal servers the architectural layers, such as the infrastructure and application software layers are built. For example: you install an operating system on top of your server hardware, install any shared libraries on top of that operating system, and then install your applications that use those libraries. 
+- downside: 
     - it's massively inefficient: your hardware costs are the same whether you are running at 0% utilization or 100% utilization. 
     - keep the versions of your libraries <u>in sync with all your applications</u>: lf one application requires an updated version of a library that is incompatible with other applications running on that host, then you run into problems.
 
-- Virtual machines
-  type=important
-
-  You can increase agility by <u>putting a **virtualization platform** over the operating system</u>. 
-  - workstyles: Now you have isolated applications and their libraries with their own full operating system into avirtual machine (VM). This improves utilization.
-  - downside:
+#### 1.2.2 Virtual machines
+A virtual machine, commonly shortened to just VM, is no different than any other physical computer like a laptop, smart phone, or server. It has a CPU, memory, disks to store your files, and can connect to the internet if needed. While the parts that make up your computer (called hardware) are physical and tangible, ==VMs are often thought of as virtual computers or software-defined computers within physical servers, existing only as code.=={.info}
+Virtual machines (VMs) are a way to run multiple applications on a single server. Each VM runs on top of a **hypervisor**, which is a piece of software that that can carve up the host resources into multiple isolated virtual hardware configuration which you can then treat as their own systems (each with an OS, binaries/libraries, and applications).
+You can increase agility by <u>putting a **virtualization platform** over the operating system</u>. 
+- workstyles: Now you have isolated applications and their libraries with their own full operating system into avirtual machine (VM). This improves utilization.
+- downside:
     - the virtualization layer is "heavy": you may have four operating systemson the host instead of one.That means <u>more patching,more updates, significantly more space being taken upon the physical host.</u> 
     - significant redundancy: you've installed potentially the same OS four times, and potentially the same library three times.
 
-- Containers
-  type=success placement=right
-
+#### 1.2.3 Containers
+ Containers are a way to run multiple applications on a single server without the overhead of a hypervisor. Each container runs on top of a **container engine** (software that manages the lifecycle of containers), which oversees and isolates processes using the host operating system’s kernel features.
   - workstyles: The container runtime shares the operating systems kernel, enabling you to create container images using file system layers. 
   - advantages:
     - lightweight, efficient, and fast: They can be spun up and spun down faster than virtual machines, allowing for better utilization of the underlying hardware.
@@ -76,14 +73,14 @@ Now consider the same three applications running ina microservice architecture: 
     - Each container uses ==the language and technology that is best suited for the functioning of the service=={.info} instead of requiring users to use a specific language or a specific technology. 
     - Each component or system in the architecture is ==evolved separately=={.info} rather than updating the system in amonolithic style.
 - Smart endpoints, dumb pipes
-There is no enterprise service bus(企业服务总线); data is not transformed when it's going between services. ==The service receiving the data should be smart enough to handle whatever it is sent.=={.info}
+    There is no enterprise service bus(企业服务总线); data is not transformed when it's going between services. ==The service receiving the data should be smart enough to handle whatever it is sent.=={.info}
 - Independent products, not projects
-Going against the traditional waterfall project model, think of a microservice as ==a separate product with its own inputs and outputs=={.info}. Containers help with this by enabling you to package all your dependencies and your libraries into a single immutable object.
+    Going against the traditional waterfall project model, think of a microservice as ==a separate product with its own inputs and outputs=={.info}. Containers help with this by enabling you to package all your dependencies and your libraries into a single immutable object.
 - Designed for failure
-Everything fails all the time. Services are designed to be resilient, redundant, and to handle bad input, or if the service the microservice wants to communicate with is not there.
+    Everything fails all the time. Services are designed to be resilient, redundant, and to handle bad input, or if the service the microservice wants to communicate with is not there.
 - Disposability可处理性
-We start fast, fail fast, and release any file handlers. Containers are added and removed, workloads change, and resources are temporary because they constantly change.
+    We start fast, fail fast, and release any file handlers. Containers are added and removed, workloads change, and resources are temporary because they constantly change.
 - Development and production parity对等
-==Development, testing and production environments can be made consistent using containers.=={.info} 
+    ==Development, testing and production environments can be made consistent using containers.=={.info} 
 
 To sum it all up,microservices and containers go well together. Containers are the underlying technology that powers modern microservices, and with microservice architectures, developers can take full advantage of containers.
