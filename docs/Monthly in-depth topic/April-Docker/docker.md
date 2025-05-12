@@ -9,6 +9,19 @@ title: Docker
 - Containers are a form of virtualization that is implemented at the operating system level. ==Containers are lightweight, standalone packages that include everything needed to run an application=={!info}, such as code, runtime, system tools, system libraries, and settings.
 - A single server can host <u>several containers that all share the underlying host system's OS Kernel</u>. These containers might be services that are part of a larger enterprise application, or they might be separate applications that are running in their isolated environment.
 
+#### 1.1.1 Related Concepts
+1. Images: Templates for containers
+An image is ==a read-only template=={.info} with instructions for creating a container. <u>A running container is an instance of an image.</u> 
+- You can create images from scratch
+- or you can use images that were created by others and published to a public or private registry. 
+An image is usually based on another image, with some customization.
+
+2. Dockerfiles and layers
+To build your own image, you create a Dockerfile using a simple syntax to define how to create the image and run it. 
+Each instruction in a Dockerfile creates <u>a read-only layer</u> in the image, making the container image an immutable object.
+If you change the Dockerfile and rebuild the image, ==only those layers that have changed are rebuilt.=={.info} This is part of what makes container images so lightweight, small, and fast, when compared to other virtualization technologies.
+![alt text](Dockerfile.png)
+
 ### 1.2 History of Virtualization
 <u>Technical maturity is often associated with increasec levels of abstraction.</u> 
 
@@ -42,21 +55,9 @@ You can increase agility by <u>putting a **virtualization platform** over the op
 
 And ==Docker=={.info} makes CONTAINER popular again.
 
-##### 1.1.2.2 Concepts
-1. Images: Templates for containers
-An image is ==a read-only template=={.info} with instructions for creating a container. <u>A running container is an instance of an image.</u> 
-- You can create images from scratch
-- or you can use images that were created by others and published to a public or private registry. 
-An image is usually based on another image, with some customization.
 
-2. Dockerfiles and layers
-To build your own image, you create a Dockerfile using a simple syntax to define how to create the image and run it. 
-Each instruction in a Dockerfile creates <u>a read-only layer</u> in the image, making the container image an immutable object.
-If you change the Dockerfile and rebuild the image, ==only those layers that have changed are rebuilt.=={.info} This is part of what makes container images so lightweight, small, and fast, when compared to other virtualization technologies.
-![alt text](Dockerfile.png)
-
-#### 1.1.3 What are the advantages of a microservice environment?
-##### 1.1.3.1 Traditional vs microservice architecture
+### 1.3 What are the advantages of a microservice environment?
+#### 1.3.1 Traditional vs microservice architecture
 - Traditional architecture
 Consider this example of atraditional architecture. All the processes for one of the applications are tightly coupled and run as a single service. 
     - This means that <u>if one process of the application experiences a spike in demand, the entire architecture must be scaled.</u>
@@ -68,19 +69,51 @@ Now consider the same three applications running ina microservice architecture: 
     - Each service performs a single function that can support multiple applications. 
     - We also see <u>a migration away from dedicated servers to an abstracted hardware layer</u> where micro services can be intelligently placed based on needs, such as performance and resilience.
 ![alt text](traditional&microservice_architecture.png)
-##### 1.1.3.2 Characteristics of microservices
+
+#### 1.3.2 Characteristics of microservices
 - Decentralized,evolutionary design
     - Each container uses ==the language and technology that is best suited for the functioning of the service=={.info} instead of requiring users to use a specific language or a specific technology. 
     - Each component or system in the architecture is ==evolved separately=={.info} rather than updating the system in amonolithic style.
 - Smart endpoints, dumb pipes
+
     There is no enterprise service bus(企业服务总线); data is not transformed when it's going between services. ==The service receiving the data should be smart enough to handle whatever it is sent.=={.info}
 - Independent products, not projects
+
     Going against the traditional waterfall project model, think of a microservice as ==a separate product with its own inputs and outputs=={.info}. Containers help with this by enabling you to package all your dependencies and your libraries into a single immutable object.
 - Designed for failure
+
     Everything fails all the time. Services are designed to be resilient, redundant, and to handle bad input, or if the service the microservice wants to communicate with is not there.
 - Disposability可处理性
+
     We start fast, fail fast, and release any file handlers. Containers are added and removed, workloads change, and resources are temporary because they constantly change.
 - Development and production parity对等
+
     ==Development, testing and production environments can be made consistent using containers.=={.info} 
 
 To sum it all up,microservices and containers go well together. Containers are the underlying technology that powers modern microservices, and with microservice architectures, developers can take full advantage of containers.
+
+### 1.4 Open Container Initiative (OCI)
+The OCI is an industry collaboration that ==aims to create **open industry standards** for container formats and runtimes.=={.info} It was founded by companies like Docker, Google, VMware, Microsoft, Dell, IBM, and Oracle. 
+
+The OCI's primary goal is to ensure the compatibility and interoperability of container environments through three defined technical specifications，which includes:
+
+1. Image Specification: Defines the image's metadata and format, including a serializable file system.
+2. Runtime Specification: Describes how to run a container using an image adhering to the Image Specification.
+3. Distribution Specification: Outlines how images should be distributed, such as through registries, pushing, and pulling images.
+
+Docker is a specific implementation of the OCI standard. When referring to Docker images or Docker container images, it means the Docker implementation of the OCI specification.
+
+
+## 2. Underlying Technologies
+### 2.1 Namespaces
+Docker namespaces are a fundamental feature of Linux that ==Docker uses to create isolated environments for containers=={.info}. They provide a layer of isolation by <u>creating separate instances of global system resources, making each container believe it has its own unique set of resources.</u> 
+Docker utilizes several types of namespaces, including PID (Process ID), NET (Network), MNT (Mount), UTS (Unix Timesharing System), IPC (InterProcess Communication), and USER namespaces and by leveraging these namespaces, Docker can create lightweight, portable, and secure containers that run consistently across different environments.
+
+The best way to prevent privilege-escalation attacks from within a container is ==to configure your container's applications to run as unprivileged users.=={.info} For containers whose processes must run as the root user within the container, you can re-map this user to a less-privileged user on the Docker host. The mapped user is assigned a range of UIDs which function within the namespace as normal UIDs from 0 to 65536, but have no privileges on the host machine itself.
+
+### 2.2 cgroups
+cgroups or "control groups" are a Linux kernel feature that allows you to allocate and manage resources, such as CPU, memory, network bandwidth, and I/O, among groups of processes running on a system. It plays a crucial role in ==providing resource isolation and limiting the resources that a running container can use.=={.info} Docker utilizes cgroups to **enforce resource constraints on containers**, allowing them to have a consistent and predictable behavior. 
+
+### 2.3 Union File systems
+Union file systems, also known as UnionFS, play a crucial role in the overall functioning of Docker. It's a unique type of filesystem that ==creates a virtual, layered file structure by overlaying multiple directories.=={.info} Instead of modifying the original file system or merging directories, UnionFS enables the **simultaneous mounting of multiple directories on a single mount point while keeping their contents separate**. 
+This feature is especially beneficial in the context of Docker, as it allows us to manage and optimize storage performance by minimizing duplication and reducing the container image size.
