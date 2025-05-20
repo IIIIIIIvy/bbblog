@@ -9,19 +9,6 @@ title: Docker
 - Containers are a form of virtualization that is implemented at the operating system level. ==Containers are lightweight, standalone packages that include everything needed to run an application=={!info}, such as code, runtime, system tools, system libraries, and settings.
 - A single server can host <u>several containers that all share the underlying host system's OS Kernel</u>. These containers might be services that are part of a larger enterprise application, or they might be separate applications that are running in their isolated environment.
 
-#### 1.1.1 Related Concepts
-1. Images: Templates for containers
-An image is ==a read-only template=={.info} with instructions for creating a container. <u>A running container is an instance of an image.</u> 
-- You can create images from scratch
-- or you can use images that were created by others and published to a public or private registry. 
-An image is usually based on another image, with some customization.
-
-2. Dockerfiles and layers
-To build your own image, you create a Dockerfile using a simple syntax to define how to create the image and run it. 
-Each instruction in a Dockerfile creates <u>a read-only layer</u> in the image, making the container image an immutable object.
-If you change the Dockerfile and rebuild the image, ==only those layers that have changed are rebuilt.=={.info} This is part of what makes container images so lightweight, small, and fast, when compared to other virtualization technologies.
-![alt text](Dockerfile.png)
-
 ### 1.2 History of Virtualization
 <u>Technical maturity is often associated with increasec levels of abstraction.</u> 
 
@@ -105,6 +92,7 @@ Docker is a specific implementation of the OCI standard. When referring to Docke
 
 
 ## 2. Underlying Technologies
+
 ### 2.1 Namespaces
 Docker namespaces are a fundamental feature of Linux that ==Docker uses to create isolated environments for containers=={.info}. They provide a layer of isolation by <u>creating separate instances of global system resources, making each container believe it has its own unique set of resources.</u> 
 Docker utilizes several types of namespaces, including PID (Process ID), NET (Network), MNT (Mount), UTS (Unix Timesharing System), IPC (InterProcess Communication), and USER namespaces and by leveraging these namespaces, Docker can create lightweight, portable, and secure containers that run consistently across different environments.
@@ -117,3 +105,167 @@ cgroups or "control groups" are a Linux kernel feature that allows you to alloca
 ### 2.3 Union File systems
 Union file systems, also known as UnionFS, play a crucial role in the overall functioning of Docker. It's a unique type of filesystem that ==creates a virtual, layered file structure by overlaying multiple directories.=={.info} Instead of modifying the original file system or merging directories, UnionFS enables the **simultaneous mounting of multiple directories on a single mount point while keeping their contents separate**. 
 This feature is especially beneficial in the context of Docker, as it allows us to manage and optimize storage performance by minimizing duplication and reducing the container image size.
+
+
+## 3. Docker Basics
+### 3.1 Docker Components
+There are ==3 key components=={.info} in the Docker ecosystem:
+
+1. Dockerfile
+
+    A text file containing instructions (commands) to build a Docker image.
+    Each instruction in a Dockerfile creates <u>a read-only layer</u> in the image, making the container image an immutable object.
+    If you change the Dockerfile and rebuild the image, ==only those layers that have changed are rebuilt.=={.info} This is part of what makes container images so lightweight, small, and fast, when compared to other virtualization technologies.
+
+2. Docker Image
+
+    A snapshot of a container, <u>created from a Dockerfile</u>. Images are stored in a registry, like Docker Hub, and can be pulled or pushed to the registry.
+    An image is ==a read-only template=={.info} with instructions for creating a container. <u>A running container is an instance of an image.</u> 
+    - You can create images from scratch
+    - or you can use images that were created by others and published to a public or private registry. 
+    An image is usually based on another image, with some customization.
+
+3. Docker Container
+
+    A running instance of a Docker image.
+
+![alt text](Dockerfile.png)
+
+### 3.2 Docker Commands
+Some essential Docker commands will be used frequently:
+- ```bash
+  docker pull <image>
+    ```
+    Download an image from a registry, like Docker Hub.
+
+- ```bash
+  docker build -t <image_name> <path>
+    ```
+    Build an image from a Dockerfile, where ```<path>``` is the directory containing the Dockerfile.
+
+- ```bash
+  docker image ls
+    ```
+    List all images available on your local machine.
+
+- ```bash
+  docker run -d -p <host_port>:<container_port> --name <container_name> <image>
+    ```
+    Run a container from an image, mapping host ports to container ports.
+
+- ```bash
+  docker container ls
+    ```
+    List all running containers.
+
+- ```bash
+  docker container stop <container>
+    ```
+    Stop a running container.
+
+- ```bash
+  docker container rm <container>
+    ```
+    Remove a stopped container.
+
+- ```bash
+  docker image rm <image>
+    ```
+    Remove an image from your local machine.
+
+
+## 4. Data Persistence in Docker
+When a container starts, it uses the files and configuration provided by the image. Each container is able to create, modify, and delete files and does so without affecting any other containers. When the container is deleted, these file changes are also deleted.
+
+While this ephemeral nature of containers is great, ==it poses a challenge when you want to persist the data=={.info}. For example, if you restart a database container, you might not want to start with an empty database. So, how do you persist files?
+
+### 4.1 Container Volumes
+==Volumes are a storage mechanism that provide the ability to persist data beyond the lifecycle of an individual container.=={.note} Think of it like providing a shortcut or symlink from inside the container to outside the container. ==And it is created and managed by Docker.=={.note}That means When you create a volume, it's stored within a directory on the Docker host. 
+
+#### 4.1.1 Mounting a volume over existing data
+- If you mount a ```non-empty``` volume into a directory in the container in which files or directories exist, the pre-existing files are <u>obscured by the mount.</u> 
+
+    This is similar to if you were to save files into /mnt on a Linux host, and then mounted a USB drive into /mnt. The contents of /mnt would be obscured by the contents of the USB drive until the USB drive was unmounted.
+
+    With containers, there's no straightforward way of removing a mount to reveal the obscured files again. Your best option is to recreate the container without the mount.
+
+- If you mount an ```empty``` volume into a directory in the container in which files or directories exist, these files or directories are <u>propagated (copied) into the volume by default.</u> Similarly, if you start a container and specify a volume which does not already exist, an empty volume is created for you. This is a good way to pre-populate data that another container needs.
+
+- To prevent Docker from copying a container's pre-existing files into an empty volume, use the ```volume-nocopy``` option.
+
+#### 4.1.2 Named and anonymous volumes
+A volume may be named or anonymous. Anonymous volumes are given a random name that's guaranteed to be unique within a given Docker host. Just like named volumes, anonymous volumes persist even if you remove the container that uses them, except if you use the ```--rm``` flag when creating the container, in which case the anonymous volume associated with the container is destroyed.
+
+If you create multiple containers consecutively that each use anonymous volumes, each container creates its own volume. Anonymous volumes aren't reused or shared between containers automatically. To share an anonymous volume between two or more containers, you must mount the anonymous volume using the random volume ID.
+
+#### 4.1.3 Syntax
+To mount a volume with the ```docker run ```command, you can use either the ```--mount``` or ```--volume``` flag.
+```bash
+$ docker run --mount type=volume,src=<volume-name>,dst=<mount-path>
+$ docker run --volume <volume-name>:<mount-path>
+```
+In general, ==```--mount``` is preferred.=={.note} The main difference is that the ```--mount``` flag is more explicit and supports all the available options.
+
+#### 4.1.4 Create and manage volumes
+Unlike a bind mount, you can create and manage volumes <u>outside the scope of any container.</u>
+
+- **Create** a volume: create a volume named ```log-data```.
+    ```bash
+    $ docker volume create log-data
+    ```
+- **List** volumes:
+    ```bash
+    $ docker volume ls
+
+    local          my-vol
+    ```
+- **Inspect** a volume:
+    ```bash
+    $ docker volume inspect my-vol
+    [
+        {
+            "Driver": "local",
+            "Labels": {},
+            "Mountpoint": "/var/lib/docker/volumes/my-vol/_data",
+            "Name": "my-vol",
+            "Options": {},
+            "Scope": "local"
+        }
+    ]
+    ```
+- **Remove** a volume:
+    ```bash
+    docker volume rm my-vol
+    ```
+
+#### 4.1.4 Start a container with a volume
+If  you start a container with a volume that doesn't yet exist, Docker will <u>automatically create it</u> for you.
+
+The following example mounts the volume ```myvol2``` into ```/app/``` in the container.
+
+The following ```-v``` and ```--mount``` examples produce the same result.
+
+::: code-tabs
+@tab --mount
+```bash
+docker run -d \
+  --name devtest \
+  --mount source=myvol2,target=/app \
+  nginx:latest
+```
+
+@tab -v
+```bash
+docker run -d \
+  --name devtest \
+  -v myvol2:/app \
+  nginx:latest
+```
+:::
+
+When the container runs, ==all files it writes into the /app folder will be saved in this volume,=={.note} outside of the container. If you delete the container and start a new container using the same volume, the files will still be there.
+
+::: tip Sharing files using volumes
+You can <u>attach the same volume to multiple containers to share files between containers.</u> This might be helpful in scenarios such as log aggregation, data pipelines, or other event-driven applications.
+:::
+
