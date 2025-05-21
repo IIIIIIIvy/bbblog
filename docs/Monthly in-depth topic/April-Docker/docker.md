@@ -238,7 +238,7 @@ Unlike a bind mount, you can create and manage volumes <u>outside the scope of a
     docker volume rm my-vol
     ```
 
-#### 4.1.4 Start a container with a volume
+#### 4.1.5 Start a container with a volume
 If you start a container with a volume that doesn't yet exist, Docker will <u>automatically create it</u> for you.
 
 The following example mounts the volume ```myvol2``` into ```/app/``` in the container.
@@ -365,3 +365,259 @@ Volumes are a good choice for the following use cases:
 ::: warning
 Volumes are **not** a good choice if you need to access the files from the host, as the volume is completely managed by Docker. Use bind mounts if you need to access files or directories from both containers and the host.
 :::
+
+
+## 5. Using 3rd Party Container Images
+### 5.1 Databases
+Using a local containerized database offers flexibility and ease of setup, letting you mirror production environments closely without the overhead of traditional database installations. Docker simplifies this process, enabling you to deploy, manage, and scale databases in isolated containers with just a few commands.
+
+The following wil use the MySQL image for examples, but the concepts can be applied to other database images.
+#### 5.1.1 Run a local containerized database
+Most popular database systems, including MySQL, PostgreSQL, and MongoDB, have a Docker Official Image available on Docker Hub. (Though I can't access the page)
+
+To run a database container, you can use either the Docker Desktop GUI or CLI. (Just write down how to use CLI)
+
+To run a container using the CLI, run the following command in a terminal:
+```bash
+$ docker run --name my-mysql -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=mydb -d mysql:latest
+```
+In this command:
+- ```--name my-mysql``` assigns the name my-mysql to your container for easier reference.
+- ```-e MYSQL_ROOT_PASSWORD=my-secret-pw``` sets the root password for MySQL to my-secret-pw. 
+- ```-e MYSQL_DATABASE=mydb``` optionally creates a database named mydb. 
+- ```-d``` runs the container in <u>detached mode, meaning it runs in the background</u>.
+- ```mysql:latest``` specifies that you want to use the latest version of the MySQL image.
+
+To verify that you container is running, run docker ps in a terminal
+
+#### 5.1.2 Access the shell of a containerized database
+When you have a database running inside a Docker container, you may need to <u>access its shell to manage the database, execute commands, or perform administrative tasks.</u> Docker provides a straightforward way to do this using the ```docker exec```command. Additionally, if you prefer a graphical interface, you can use Docker Desktop's GUI.
+
+To access the terminal of a MySQL container **using the CLI**, you can use the following ```docker exec``` command.
+```bash
+$ docker exec -it my-mysql bash
+```
+In this command:
+- ```docker exec``` tells Docker you want to **execute a command in a running container**.
+- ```-it``` ensures that the terminal you're **accessing is interactive**, so you can type commands into it.
+- ```my-mysql``` is the name of your MySQL container. If you named your container differently when you ran it, use that name instead.
+- ```bash``` is <u>the command you want to run inside the container</u>. It opens up a bash shell that lets you interact with the container's file system and installed applications.
+
+After executing this command, you will ==be given access to the bash shell inside your MySQL container, from which you can manage your MySQL server directly.=={.info} You can run ```exit``` to return to your terminal.
+
+---
+Once you've accessed the container's terminal, you can run <u>any tools</u> available in that container. The following example shows using mysql in the container to list the databases.
+```sql
+# mysql -u root -p
+Enter password: my-secret-pw
+
+mysql> SHOW DATABASES;
+
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mydb               |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+5 rows in set (0.00 sec)
+```
+
+#### 5.1.3 Connect to a containerized database from your host
+Connecting to a containerized database from your host machine involves **mapping a port inside the container to a port on your host machine**. This process ensures that the database inside the container is accessible <u>via the host machine's network</u>. For MySQL, the default port is 3306. By exposing this port, you can use various database management tools or applications on your host machine to interact with your MySQL database.
+
+Run the following command in a terminal:
+```bash 
+docker run -p 3307:3306 --name my-mysql -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=mydb -d mysql:latest
+```
+In this command, ```-p 3307:3306``` ==maps port 3307 on the host to port 3306 in the container.=={.note}
+
+To verify the port is mapped, run the following command.
+``` bash
+docker ps
+```
+You should see output like the following:
+``` bash
+CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS          PORTS                               NAMES
+6eb776cfd73c   mysql:latest   "docker-entrypoint.s…"   17 minutes ago   Up 17 minutes   33060/tcp, 0.0.0.0:3307->3306/tcp   my-mysql
+```
+At this point, <u>**any** application running on your host</u> can access the MySQL service in the container at ```localhost:3307```.
+
+#### 5.1.4 Connect to a containerized database from another container
+Connecting to a containerized database from another container is a common scenario in microservices architecture and during development processes. **Docker's networking** capabilities make it easy to establish this connection without having to expose the database to the host network. ==This is achieved by placing both the database container and the container that needs to access it on the same Docker network.=={.note}
+
+As a result, **you should create a network first** and run containers on it. To achieve it:
+1. Run the following command to create a Docker network named my-network.
+    ```bash
+    docker network create my-network
+    ```
+2. Run your database container and ==specify the network using the ```--network``` option=={.note}. This runs the container on the my-network network.
+    ``` bash
+    docker run --name my-mysql -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=mydb --network my-network -d mysql:latest
+    ```
+3. Run your other containers and specify the network using the ```--network option```. For this example, you'll run a phpMyAdmin container that can connect to your database.
+    
+    Run a phpMyAdmin container. Use the ```--network``` option to specify the network, the ```-p``` option to let you access the container from your host machine, and the ```-e``` option to specify a required environment variable for this image.
+    ```bash
+    docker run --name my-phpmyadmin -d --network my-network -p 8080:80 -e PMA_HOST=my-mysql phpmyadmin
+    ```
+4. Verify that the containers can communicate. For this example, you'll access phpMyAdmin and verify that it connects to the database.
+- Open http://localhost:8080 to access your phpMyAdmin container.
+- Log in using ```root``` as the username and ```my-secret-pw``` as the password. You should connect to the MySQL server and see your database listed.
+
+At this point, **any application running on your ```my-network``` container network** can access the MySQL service in the container at ```my-mysql:3306```.
+
+#### 5.1.5 Persist database data in a volume
+Persisting database data in a Docker volume is necessary for ensuring that your data survives container restarts and removals. A Docker volume lets you store database files outside the container's writable layer, making it possible to upgrade the container, switch bases, and share data without losing it. Here’s how you can attach a volume to your database container using either the Docker CLI or the Docker Desktop GUI.
+
+To run your database container **with a volume attached**, include the ```-v``` option with your ```docker run``` command, specifying a volume name and the path where the database stores its data inside the container. If the volume doesn't exist, Docker automatically creates it for you.
+
+To run a database container with a volume attached, and then verify that the data persists:
+1. Run the container and attach the volume.
+    ```bash
+    docker run --name my-mysql -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=mydb -v my-db-volume:/var/lib/mysql -d mysql:latest
+    ```
+    This command mounts the volume named ```my-db-volume``` to the ```/var/lib/mysql``` directory in the container.
+2. Create some data in the database. Use the ```docker exec``` command to run ```mysql``` inside the container and create a table.
+    ```bash
+    docker exec my-mysql mysql -u root -p my-secret-pw -e "CREATE TABLE IF NOT EXISTS mydb.mytable (column_name VARCHAR(255)); INSERT INTO mydb.mytable (column_name) VALUES ('value');"
+    ```
+    This command uses the ```mysql``` tool in the container to create a table named ```mytable``` with a column named ```column_name```, and finally inserts a value of ```value```.
+3. Stop and remove the container. Without a volume, the table you created would be lost when removing the container.
+    ```bash
+    docker remove --force my-mysql
+    ```
+4. Start a new container with the volume attached. This time, ==you don't need to specify any environment variables as the configuration is saved in the volume=={.note}.
+    ```bash
+    docker run --name my-mysql -v my-db-volume:/var/lib/mysql -d mysql:latest
+    ```
+5. Verify that the table you created still exists. Use the ```docker exec``` command again to run ```mysql``` inside the container.
+    ```bash 
+    docker exec my-mysql mysql -u root -p my-secret-pw -e "SELECT * FROM mydb.mytable;"
+    ```
+    This command uses the ```mysql``` tool in the container to select all the records from the ```mytable``` table.
+    
+    You should see output like the following.
+    ```bash 
+    column_name
+    value
+    ```
+At this point, any MySQL container that mounts the ```my-db-volume``` will be able to access and save persisted data.
+
+#### 5.1.6 Build a customized database image
+Customizing your database image lets you **include additional configuration, scripts, or tools alongside the base database server**. This is particularly useful for creating a Docker image that matches your specific development or production environment needs. The following example outlines how to build and run a custom MySQL image that includes a table initialization script.
+
+To build and run your custom image:
+1. ==Create a Dockerfile=={.note}.
+- Create a file named ```Dockerfile``` in your project directory. For this example, you can create the ```Dockerfile``` in an empty directory of your choice. <u>This file will define how to build your custom MySQL image.</u>
+- Add the following content to the Dockerfile.
+    ```dockerfile
+    # syntax=docker/dockerfile:1
+
+    # Use the base image mysql:latest
+    FROM mysql:latest
+
+    # Set environment variables
+    ENV MYSQL_DATABASE mydb
+
+    # Copy custom scripts or configuration files from your host to the container
+    COPY ./scripts/ /docker-entrypoint-initdb.d/
+    ```
+    In this Dockerfile, you've set the environment variable for the MySQL database name. You can also use the ```COPY``` instruction to add custom configuration files or scripts into the container. In this example, ==files from your host's ```./scripts/``` directory are copied into the container's ```/docker-entrypoint-initdb.d/``` directory=={.note}. In this directory, ```.sh```, ```.sql```, and ```.sql.gz``` scripts are executed when the container is started for the first time.
+- Create a script file to initialize a table in the database. <u>In the directory where your ```Dockerfile``` is located, create a subdirectory named ```scripts```,</u> and then create a file named ```create_table.sql``` with the following content.
+    ```sql
+    CREATE TABLE IF NOT EXISTS mydb.myothertable (
+    column_name VARCHAR(255)
+    );
+
+    INSERT INTO mydb.myothertable (column_name) VALUES ('other_value');
+    ```
+    You should now have the following directory structure.
+    ```
+    ├── your-project-directory/
+    │ ├── scripts/
+    │ │ └── create_table.sql
+    │ └── Dockerfile
+    ```
+2. ==Build your image=={.note}.
+- In a terminal, change directory to the directory where your ```Dockerfile``` is located.
+- Run the following command to build the image.
+    ```bash
+    docker build -t my-custom-mysql .
+    ```
+    In this command, ==```-t my-custom-mysql``` tags (names) your new image as ```my-custom-mysql```=={.note}. The period (.) at the end of the command ==specifies the current directory as the context for the build=={.note}, where **Docker looks for the Dockerfile and any other files needed for the build**.
+3. Run your image. This time, <u>specify your image's name</u> instead of ```mysql:latest```. Also, you no longer need to specify the ```MYSQL_DATABASE``` environment variable as it's now defined by your Dockerfile.
+    ```bash
+    docker run --name my-mysql -e MYSQL_ROOT_PASSWORD=my-secret-pw -d my-custom-mysql
+    ```
+4. Verify that your container is running with the following command.
+    ```bash
+    docker ps
+    ```
+5. Verify that your initialization script was ran. Run the following command in a terminal to show the contents of the myothertable table.
+    ```bash
+    docker exec my-mysql mysql -u root -p my-secret-pw -e "SELECT * FROM mydb.myothertable;"
+    ```
+    You should see output like the following.
+    ```bash
+    column_name
+    other_value
+    ```
+Any container ran using your ```my-custom-mysql``` image will have the table initialized when first started.
+
+#### 5.1.7 Use Docker Compose to run a database
+Docker Compose is a tool for defining and running multi-container Docker applications. With a single command, you can configure all your application's services (like databases, web apps, etc.) and manage them. In this example, you'll create a Compose file and use it to run a MySQL database container and a phpMyAdmin container.
+
+To run your containers with Docker Compose:
+1. Create a **Docker Compose file**.
+- Create a file named ```compose.yaml``` in your project directory. This file will define the services, networks, and volumes.
+- Add the following content to the ```compose.yaml``` file.
+    ```yaml
+    services:
+    db:
+        image: mysql:latest
+        environment:
+        MYSQL_ROOT_PASSWORD: my-secret-pw
+        MYSQL_DATABASE: mydb
+        ports:
+        - 3307:3306
+        volumes:
+        - my-db-volume:/var/lib/mysql
+
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin:latest
+        environment:
+        PMA_HOST: db
+        PMA_PORT: 3306
+        MYSQL_ROOT_PASSWORD: my-secret-pw
+        ports:
+        - 8080:80
+        depends_on:
+        - db
+
+    volumes:
+    my-db-volume:
+    ```
+    For the database service:
+    - ```db``` is the name of the service.
+    - ```image: mysql:latest``` specifies that the service uses the latest MySQL image from Docker Hub.
+    - ```environment``` lists the environment variables used by MySQL to initialize the database, such as the root password and the database name.
+    - ```ports``` maps port 3307 on the host to port 3306 in the container, allowing you to connect to the database from your host machine.
+    - ```volumes``` mounts ```my-db-volume``` to ```/var/lib/mysql``` inside the container to persist database data.
+    
+    In addition to the database service, there is a phpMyAdmin service. <u>By default Compose sets up a single network for your app. Each container for a service joins the default network and is both reachable by other containers on that network, and discoverable by the service's name. </u>Therefore, in the ```PMA_HOST``` environment variable, you can specify the service name, ```db```, in order to connect to the database service. 
+2. Run Docker Compose.
+- Open a terminal and change directory to the directory where your ```compose.yaml``` file is located.
+- Run Docker Compose using the following command.
+    ```bash
+    docker compose up
+    ```
+    You can now access phpMyAdmin at http://localhost:8080 and connect to your database using ```root``` as the username and ```my-secret-pw``` as the password.
+- To stop the containers, press ```ctrl+c``` in the terminal.
+
+Now, with Docker Compose you can <u>start your database and app, mount volumes, configure networking, and more,</u> all with a **single** command.
+
+### 5.2 Interactive Test Environments
+### 5.3 Command Line Utilities
