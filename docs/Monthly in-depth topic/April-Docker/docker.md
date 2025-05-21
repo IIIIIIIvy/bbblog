@@ -239,7 +239,7 @@ Unlike a bind mount, you can create and manage volumes <u>outside the scope of a
     ```
 
 #### 4.1.4 Start a container with a volume
-If  you start a container with a volume that doesn't yet exist, Docker will <u>automatically create it</u> for you.
+If you start a container with a volume that doesn't yet exist, Docker will <u>automatically create it</u> for you.
 
 The following example mounts the volume ```myvol2``` into ```/app/``` in the container.
 
@@ -263,9 +263,105 @@ docker run -d \
 ```
 :::
 
-When the container runs, ==all files it writes into the /app folder will be saved in this volume,=={.note} outside of the container. If you delete the container and start a new container using the same volume, the files will still be there.
+When the container runs, ==all files it writes into the ```/app``` folder will be saved in this volume,=={.note} outside of the container. If you delete the container and start a new container using the same volume, the files will still be there.
 
 ::: tip Sharing files using volumes
 You can <u>attach the same volume to multiple containers to share files between containers.</u> This might be helpful in scenarios such as log aggregation, data pipelines, or other event-driven applications.
 :::
 
+### 4.2 Bind mounts
+When you use a bind mount, a file or directory ==on the host machine=={.note} is mounted from the host into a container. 
+
+By contrast, when you use a volume, a new directory is created <u>within Docker's storage directory on the host machine, and Docker manages that directory's contents.</u>
+
+#### 4.2.1 Bind-mounting over existing data
+If you bind mount file or directory into a directory in the container <u>in which files or directories exist</u>, the pre-existing files are <u>obscured by the mount.</u> 
+
+This is similar to if you were to save files into ```/mnt``` on a Linux host, and then mounted a USB drive into ```/mnt```. The contents of ```/mnt``` would be obscured by the contents of the USB drive until the USB drive was unmounted.
+
+With containers, there's no straightforward way of removing a mount to reveal the obscured files again. Your best option is to recreate the container without the mount.
+
+#### 4.2.2 Considerations and constraints
+- Bind mounts ==have write access=={.info} to files on the host by default.
+
+    One side effect of using bind mounts is that you can change the host filesystem via processes running in a container, including creating, modifying, or deleting important system files or directories. This capability can have <u>security implications</u>. For example, it may affect non-Docker processes on the host system.
+    
+    You can use the readonly or ro option to prevent the container from writing to the mount.
+
+- Bind mounts are created to the Docker daemon host, not the client.
+
+    If you're using a remote Docker daemon, you can't create a bind mount to access files on the client machine in a container.
+
+    For Docker Desktop, the daemon runs inside a Linux VM, not directly on the native host. Docker Desktop has built-in mechanisms that transparently handle bind mounts, allowing you to share native host filesystem paths with containers running in the virtual machine.
+
+- Containers with bind mounts are ==strongly tied to the host=={.info}.
+
+    Bind mounts rely on the host machine's filesystem <u>having a specific directory structure available</u>. This reliance means that containers with bind mounts <u>may fail if run on a different host without the same directory structure.</u>
+
+#### 4.2.3 Syntax
+To create a bind mount, you can use either the ```--mount``` or ```--volume``` flag.
+```bash
+$ docker run --mount type=bind,src=<host-path>,dst=<container-path>
+$ docker run --volume <host-path>:<container-path>
+```
+In general, ==```--mount``` is preferred.=={.note} The main difference is that the ```--mount``` flag is more explicit and supports all the available options.
+
+- If you use ```--volume``` to bind-mount a file or directory that <u>does not yet exist</u> on the Docker host, Docker <u>automatically creates</u> the directory on the host for you. It's always created as a directory.
+
+- ```--mount``` ==does not automatically create a directory=={.note} if the specified mount path does not exist on the host. Instead, it produces an error.
+
+#### 4.2.4 Start a container with a bind mount
+Consider a case where you have a directory ```source``` and that when you build the source code, the artifacts are saved into another directory, ```source/target/```. You want the artifacts to be available to the container at ```/app/```, and you want the container to get access to a new build each time you build the source on your development host. 
+
+Use the following command to bind-mount the ```target/``` directory into your container at ```/app/```. Run the command from <u>within the ```source directory```</u>. The ```$(pwd)``` sub-command <u>expands to the current working directory on Linux or macOS hosts.</u> If you're on Windows, see also [Path conversions on Windows](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics/).
+
+
+The following ```-v``` and ```--mount``` examples produce the same result. You can't run them both unless you remove the ```devtest```container after running the first one.
+
+::: code-tabs
+@tab --mount
+```bash
+docker run -d \
+  -it \
+  --name devtest \
+  --mount type=bind source="$(pwd)"/target,target=/app \
+  nginx:latest
+```
+
+@tab -v
+```bash
+docker run -d \
+  -it \
+  --name devtest \
+  -v "$(pwd)"/target:/app \
+  nginx:latest
+```
+:::
+
+
+### 4.3 Difference between volumes and bind mounts
+
+#### 4.3.1 When to use bind mounts
+Bind mounts are appropriate for the following types of use case:
+
+- ==Sharing source code or build artifacts=={.note} between a development environment on the Docker host and a container.
+
+- When you want to create or generate files in a container and <u>persist the files onto the host's filesystem</u>.
+
+- Sharing configuration files <u>from the host machine to containers.</u> This is how Docker provides DNS resolution to containers by default, by mounting ```/etc/resolv.conf``` from the host machine into each container.
+
+- Bind mounts are also available for builds: you can bind mount source code from the host into the build container to test, lint, or compile a project.
+
+#### 4.3.2 When to use volumes
+Volumes are a good choice for the following use cases:
+
+- Volumes are <u>easier to back up or migrate</u> than bind mounts.
+- You can manage volumes using Docker CLI commands or the Docker API.
+- Volumes work on both Linux and Windows containers.
+- Volumes can be more safely shared among multiple containers.
+- New volumes can <u>have their content pre-populated by a container or build.</u>
+- When your application <u>requires high-performance I/O.</u>
+
+::: warning
+Volumes are **not** a good choice if you need to access the files from the host, as the volume is completely managed by Docker. Use bind mounts if you need to access files or directories from both containers and the host.
+:::
