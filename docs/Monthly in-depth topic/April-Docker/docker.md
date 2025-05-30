@@ -620,4 +620,38 @@ To run your containers with Docker Compose:
 Now, with Docker Compose you can <u>start your database and app, mount volumes, configure networking, and more,</u> all with a **single** command.
 
 ### 5.2 Interactive Test Environments
+#### 5.2.1 Source
+You can launch a dev environment from a:
+- Git repository
+- Branch or tag of a Git repository
+- Sub-folder of a Git repository
+- Local folder
+
+This does not conflict with any of the local files or local tooling set up on your host. 
+
+#### 5.2.2 Launch a dev environment from a Git repository
+
+To launch a dev environment:
+
+1. From the **Dev Environments** tab in Docker Dashboard, select **Create**. The **Create a Dev Environment** dialog displays.
+2. Select **Get Started**. 
+3. Optional: Provide a name for you dev environment.
+4. Select **Existing Git repo** as the source and then paste your Git repository link into the field provided: https://github.com/dockersamples/single-dev-env
+5. Choose your IDE. You can choose either:
+    - **Visual Studio Code**. The Git repository is cloned into a Volume and attaches to your containers. This allows you to develop directly inside of them using Visual Studio Code.
+    - **Other**. The Git repository is cloned into your chosen local directory and attaches to your containers as a bind mount. This shares the directory from your computer to the container, and allows you to develop using any local editor or IDE.
+6. Select **Continue**.
+
+To launch the application, run the command `make run` in your terminal. This opens an http server on port 8080. Open [http://localhost:8080](http://localhost:8080) in your browser to see the running application.
+
+> Tip
+>
+> To use the `make` command in Windows, try `Makefile Tool` in VS Code.
+
+
 ### 5.3 Command Line Utilities
+About some command line references.
+To view details:
+- Docker Images: https://docs.docker.com/engine/reference/commandline/images/
+- Docker Run: https://docs.docker.com/reference/cli/docker/container/run/
+- Docker Pull: https://docs.docker.com/engine/reference/commandline/pull/
