@@ -651,7 +651,290 @@ To launch the application, run the command `make run` in your terminal. This ope
 
 ### 5.3 Command Line Utilities
 About some command line references.
-To view details:
-- Docker Images: https://docs.docker.com/engine/reference/commandline/images/
-- Docker Run: https://docs.docker.com/reference/cli/docker/container/run/
-- Docker Pull: https://docs.docker.com/engine/reference/commandline/pull/
+- `Docker Images ls`: List images, most of the options allow users to look into details like digest, image ID, tag, repository, etc. Refer to https://docs.docker.com/engine/reference/commandline/images/ for more information.
+- `Docker Run`: Create and run a new container, pulling the image if needed and starting the container. There are lots of options here, and can't list all out. Refer to https://docs.docker.com/reference/cli/docker/container/run/.
+- `Docker Image Pull`: Download an image from a registry, and options in this command allow users to choose which image should be pulled, using repository/tag/digest and so on. Refer to https://docs.docker.com/engine/reference/commandline/pull/.
+
+
+## 6. Building Container Images
+### 6.1 Dockerfiles
+Docker can build images automatically by reading the instructions from a Dockerfile. A Dockerfile is a text document that contains all the commands a user could call on the command line to assemble an image. 
+
+#### 6.1.1 Commands Overview
+The Dockerfile supports the following instructions. And here I would not list all the usages regarding every command, since it's pretty too long. Refer to https://docs.docker.com/reference/dockerfile/#overview to view details:
+
+| Instruction                            | Description                                                 |
+| :------------------------------------- | :---------------------------------------------------------- |
+| [`ADD`](#add)                          | Add local or remote files and directories.                  |
+| [`ARG`](#arg)                          | Use build-time variables.                                   |
+| [`CMD`](#cmd)                          | Specify default commands.                                   |
+| [`COPY`](#copy)                        | Copy files and directories.                                 |
+| [`ENTRYPOINT`](#entrypoint)            | Specify default executable.                                 |
+| [`ENV`](#env)                          | Set environment variables.                                  |
+| [`EXPOSE`](#expose)                    | Describe which ports your application is listening on.      |
+| [`FROM`](#from)                        | Create a new build stage from a base image.                 |
+| [`HEALTHCHECK`](#healthcheck)          | Check a container's health on startup.                      |
+| [`LABEL`](#label)                      | Add metadata to an image.                                   |
+| [`MAINTAINER`](#maintainer-deprecated) | Specify the author of an image.                             |
+| [`ONBUILD`](#onbuild)                  | Specify instructions for when the image is used in a build. |
+| [`RUN`](#run)                          | Execute build commands.                                     |
+| [`SHELL`](#shell)                      | Set the default shell of an image.                          |
+| [`STOPSIGNAL`](#stopsignal)            | Specify the system call signal for exiting a container.     |
+| [`USER`](#user)                        | Set user and group ID.                                      |
+| [`VOLUME`](#volume)                    | Create volume mounts.                                       |
+| [`WORKDIR`](#workdir)                  | Change working directory.                                   |
+
+#### 6.1.2 Format
+Here is the format of the Dockerfile:
+```dockerfile
+# Comment
+INSTRUCTION arguments
+```
+The instruction is **not case-sensitive**. However, convention is for them to be **UPPERCASE** to distinguish them from arguments more easily.
+
+Docker runs instructions in a Dockerfile <u>in order</u>. A Dockerfile **must begin with a `FROM` instruction**. This may be after parser
+directives, comments, and globally scoped ARGs. The `FROM` instruction specifies the [base
+image](https://docs.docker.com/glossary/#base-image) from which you are
+building. 
+
+For comments, buildKit treats <u>lines that begin with `#` as a comment</u>, unless the line is a valid parser directive. A `#` marker anywhere else in a line is treated as an argument. This allows statements like:
+
+```dockerfile
+# Comment
+RUN echo 'we are running some # of cool things'
+```
+
+Comment lines are **removed** before the Dockerfile instructions are executed. The comment in the following example is removed before the shell executes the `echo` command.
+
+```dockerfile
+RUN echo hello \
+# comment
+world
+```
+
+The following examples is equivalent.
+
+```dockerfile
+RUN echo hello \
+world
+```
+
+Comments don't support line continuation characters.
+
+> [!NOTE]
+> **Note on whitespace**
+>
+> For backward compatibility, leading whitespace before comments (`#`) and
+> instructions (such as `RUN`) are ignored, but discouraged. Leading whitespace
+> is not preserved in these cases, and the following examples are therefore
+> equivalent:
+>
+> ```dockerfile
+>         # this is a comment-line
+>     RUN echo hello
+> RUN echo world
+> ```
+>
+> ```dockerfile
+> # this is a comment-line
+> RUN echo hello
+> RUN echo world
+> ```
+>
+> Whitespace in instruction arguments, however, isn't ignored.
+> The following example prints `    hello    world`
+> with leading whitespace as specified:
+>
+> ```dockerfile
+> RUN echo "\
+>      hello\
+>      world"
+> ```
+
+#### 6.1.3 Parser directives
+Parser directives are optional, and affect the way in which subsequent lines in a Dockerfile are handled. Parser directives don't add layers to the build, and don't show up as build steps. Parser directives are written as a special type of comment in the form `# directive=value`. **A single directive may only be used once.**
+
+The following parser directives are supported:
+
+- `syntax`
+- `escape`
+- `check` (since Dockerfile v1.8.0)
+
+**All parser directives must be at the top of a Dockerfile.**
+
+
+##### 6.1.3.1 syntax
+Use the `syntax` parser directive to <u>declare the Dockerfile syntax version to use for the build</u>. If unspecified, BuildKit uses a bundled version of the Dockerfile frontend. 
+
+Most users will want to set this parser directive to `docker/dockerfile:1`, which causes BuildKit to pull the ==latest stable version of the Dockerfile syntax=={.info} before the build.
+
+```dockerfile
+# syntax=docker/dockerfile:1
+```
+
+For more information about how the parser directive works, see
+[Custom Dockerfile syntax](https://docs.docker.com/build/buildkit/dockerfile-frontend/).
+
+##### 6.1.3.2 escape
+
+```dockerfile
+# escape=\
+```
+
+Or
+
+```dockerfile
+# escape=`
+```
+
+The `escape` directive sets the character used to escape characters in a Dockerfile. If not specified, the default escape character is `\`.
+
+The escape character is used both to escape characters in a line, and to escape a newline. This allows a Dockerfile instruction to
+span multiple lines. Note that regardless of whether the `escape` parser directive is included in a Dockerfile, escaping is not performed in a `RUN` command, except at the end of a line.
+
+Setting the escape character to `` ` `` is especially useful on
+`Windows`, where `\` is the directory path separator. `` ` `` is consistent with Windows PowerShell.
+
+##### 6.1.3.3 check
+```dockerfile
+# check=skip=<checks|all>
+# check=error=<boolean>
+```
+
+The `check` directive is used to configure how build checks are evaluated. By default, all checks are run, and failures are treated as
+warnings.
+
+You can disable specific checks using `#check=skip=<check-name>`. To specify multiple checks to skip, separate them with a comma:
+```dockerfile
+# check=skip=JSONArgsRecommended,StageNameCasing
+```
+To disable all checks, use `#check=skip=all`.
+
+#### 6.1.2 Building best practices
+##### 6.1.2.1 Use **multi-stage builds**
+
+Multi-stage builds let you reduce the size of your final image, by creating a cleaner separation between the building of your image and the final output. Split your Dockerfile instructions into distinct stages to make sure that the resulting output only contains the files that are needed to run the application.
+
+Using multiple stages can also let you build more efficiently by executing build steps in parallel.
+
+##### 6.1.2.2 Create reusable stages
+If you have multiple images with a lot in common, consider **creating a reusable stage that includes the shared components**, and basing your unique stages on that. Docker only needs to build the common stage once. This means that your derivative images use memory
+on the Docker host more efficiently and load more quickly.
+
+It's also easier to maintain a common base stage ("Don't repeat yourself"), than it is to have multiple different stages doing similar things.
+
+##### 6.1.2.3 Choose the right base image
+The first step towards achieving a secure image is to choose the right base image. When choosing an image, ensure it's built from a trusted source and keep it small.
+
+- [Docker Official Images](https://hub.docker.com/search?image_filter=official) are a curated collection that have clear documentation, promote best practices, and are regularly updated. They provide a trusted starting point for many applications.
+- [Verified Publisher](https://hub.docker.com/search?image_filter=store) images are high-quality images published and maintained by the organizations partnering with Docker, with Docker verifying the authenticity of the content in their repositories.
+- [Docker-Sponsored Open Source](https://hub.docker.com/search?image_filter=open_source) are published and maintained by open source projects sponsored by Docker through an open source program.
+
+You should also consider using two types of base image: one for building and unit testing, and another (typically slimmer) image for production. In the later stages of development, your image may not require build tools such as compilers, build systems, and debugging tools. A small image with minimal dependencies can considerably lower the attack surface.
+
+##### 6.1.2.4 Rebuild your images often
+Docker images are immutable. Building an image is taking a snapshot of that image at that moment. That includes any base images, libraries, or other software you use in your build. <u>To keep your images up-to-date and secure, make sure to rebuild your image often, with updated dependencies.</u>
+
+To ensure that you're getting the latest versions of dependencies in your build, you can use the `--no-cache` option to avoid cache hits.
+```console
+$ docker build --no-cache -t my-image:my-tag .
+```
+
+The following Dockerfile uses the `24.04` tag of the `ubuntu` image. Over time, that tag may resolve to a different underlying version of the `ubuntu` image, as the publisher rebuilds the image with new security patches and updated libraries. Using the `--no-cache`, you can avoid cache hits and ensure a fresh download of base images and dependencies.
+
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM ubuntu:24.04
+RUN apt-get -y update && apt-get install -y --no-install-recommends python3
+```
+
+##### 6.1.2.5 Exclude with .dockerignore
+To exclude files not relevant to the build, without restructuring your source repository, use a `.dockerignore` file. This file supports exclusion patterns similar to `.gitignore` files.
+
+For example, to exclude all files with the `.md` extension:
+```plaintext
+*.md
+```
+For information on creating one, see
+[Dockerignore file](/manuals/build/concepts/context.md#dockerignore-files).
+
+##### 6.1.2.6 Create ephemeral containers
+The image defined by your Dockerfile should generate containers that are as ephemeral as possible. Ephemeral means that the container can be stopped and destroyed, then rebuilt and replaced with an absolute minimum set up and configuration.
+
+Refer to [Processes](https://12factor.net/processes) under _The Twelve-factor App_ methodology to get a feel for the motivations of running containers in such a stateless fashion.
+
+##### 6.1.2.7 Don't install unnecessary packages
+
+Avoid installing extra or unnecessary packages just because they might be nice to have. For example, you don’t need to include a text editor in a database image.
+
+When you avoid installing extra or unnecessary packages, your images have reduced complexity, reduced dependencies, reduced file sizes, and reduced build times.
+
+##### 6.1.2.8 **Decouple** applications
+Each container should have only one concern. Decoupling applications into multiple containers makes it easier to scale horizontally and reuse containers.
+
+For instance, a web application stack might consist of three separate
+containers, each with its own unique image, to manage the web application, database, and an in-memory cache in a decoupled manner.
+
+Use your best judgment to keep containers as clean and modular as possible. If containers depend on each other, you can use [Docker container networks](/manuals/engine/network/_index.md)
+to ensure that these containers can communicate.
+
+##### 6.1.2.9 Sort multi-line arguments
+Whenever possible, sort multi-line arguments **alphanumerically** to make maintenance easier. This helps to avoid duplication of packages and make the list much easier to update. This also makes PRs a lot easier to read and review. Adding a space before a backslash (`\`) helps as well.
+
+Here’s an example from the [buildpack-deps image](https://github.com/docker-library/buildpack-deps):
+
+```dockerfile
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  bzr \
+  cvs \
+  git \
+  mercurial \
+  subversion \
+  && rm -rf /var/lib/apt/lists/*
+```
+
+##### 6.1.2.10 Leverage build cache
+When building an image, Docker steps through the instructions in your
+Dockerfile, executing each in the order specified. <u>For each instruction, Docker checks whether it can reuse the instruction from the build cache.</u>
+
+For more information about the Docker build cache and how to optimize your builds, see [Docker build cache](/manuals/build/cache/_index.md).
+
+##### 6.1.2.11 Pin base image versions
+Image tags are mutable, meaning a publisher can update a tag to point to a new image. This is useful because it lets publishers update tags to point to newer versions of an image. And as an image consumer, it means you automatically get the new version when you re-build your image.
+
+For example, if you specify `FROM alpine:3.21` in your Dockerfile, `3.21`
+resolves to the latest patch version for `3.21`.
+
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM alpine:3.21
+```
+
+At one point in time, the `3.21` tag might point to version 3.21.1 of the image. If you rebuild the image 3 months later, <u>the same tag might point to a different version, such as 3.19.4.</u> This publishing workflow is best practice, and most publishers use this tagging strategy, but it isn't enforced.
+
+The downside with this is that <u>you're not guaranteed to get the same for every build.</u> This could result in breaking changes, and it means you also don't have an audit trail of the exact image versions that you're using.
+
+To fully secure your supply chain integrity, you can ==pin the image version to a specific digest.=={tip} By pinning your images to a digest, you're guaranteed to always use the same image version, even if a publisher replaces the tag with a new image. 
+
+For example, the following Dockerfile pins the Alpine image to the
+same tag as earlier, `3.21`, but this time with a digest reference as well.
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM alpine:3.21@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c
+```
+With this Dockerfile, even if the publisher updates the `3.21` tag, your builds would still use the pinned image version:
+`a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c`.
+
+While this helps you avoid unexpected changes, it's also more tedious to have to look up and include the image digest for base image versions manually each time you want to update it. And you're opting out of automated security fixes, which is likely something you want to get.
+
+##### 6.1.2.12 Build and test your images in CI
+When you check in a change to source control or create a pull request, use [GitHub Actions](../ci/github-actions/_index.md) or another CI/CD pipeline to automatically build and tag a Docker image and test it.
+
+#### 6.1.3 Dockerfile Examples
+It **must** be a useful tool for me.
+
+[Dockerfile Examples](https://github.com/dockersamples)
+
+### 6.2 Efficient Layer Caching
+### 6.1 Image Size and Security
+
