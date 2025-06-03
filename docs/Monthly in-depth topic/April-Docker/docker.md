@@ -651,9 +651,9 @@ To launch the application, run the command `make run` in your terminal. This ope
 
 ### 5.3 Command Line Utilities
 About some command line references.
-- `Docker Images ls`: List images, most of the options allow users to look into details like digest, image ID, tag, repository, etc. Refer to https://docs.docker.com/engine/reference/commandline/images/ for more information.
-- `Docker Run`: Create and run a new container, pulling the image if needed and starting the container. There are lots of options here, and can't list all out. Refer to https://docs.docker.com/reference/cli/docker/container/run/.
-- `Docker Image Pull`: Download an image from a registry, and options in this command allow users to choose which image should be pulled, using repository/tag/digest and so on. Refer to https://docs.docker.com/engine/reference/commandline/pull/.
+- `Docker Images ls`: List images, most of the options allow users to look into details like digest, image ID, tag, repository, etc. Refer to [Docker image ls](https://docs.docker.com/engine/reference/commandline/images/) for more information.
+- `Docker Run`: Create and run a new container, pulling the image if needed and starting the container. There are lots of options here, and can't list all out. Refer to [Docker run](https://docs.docker.com/reference/cli/docker/container/run/).
+- `Docker Image Pull`: Download an image from a registry, and options in this command allow users to choose which image should be pulled, using repository/tag/digest and so on. Refer to [Docker image pull](https://docs.docker.com/engine/reference/commandline/pull/).
 
 
 ## 6. Building Container Images
@@ -661,7 +661,7 @@ About some command line references.
 Docker can build images automatically by reading the instructions from a Dockerfile. A Dockerfile is a text document that contains all the commands a user could call on the command line to assemble an image. 
 
 #### 6.1.1 Commands Overview
-The Dockerfile supports the following instructions. And here I would not list all the usages regarding every command, since it's pretty too long. Refer to https://docs.docker.com/reference/dockerfile/#overview to view details:
+The Dockerfile supports the following instructions. And here I would not list all the usages regarding every command, since it's pretty too long. Refer to [Dockerfile Reference](https://docs.docker.com/reference/dockerfile/#overview) to view details:
 
 | Instruction                            | Description                                                 |
 | :------------------------------------- | :---------------------------------------------------------- |
@@ -693,9 +693,7 @@ INSTRUCTION arguments
 The instruction is **not case-sensitive**. However, convention is for them to be **UPPERCASE** to distinguish them from arguments more easily.
 
 Docker runs instructions in a Dockerfile <u>in order</u>. A Dockerfile **must begin with a `FROM` instruction**. This may be after parser
-directives, comments, and globally scoped ARGs. The `FROM` instruction specifies the [base
-image](https://docs.docker.com/glossary/#base-image) from which you are
-building. 
+directives, comments, and globally scoped ARGs. The `FROM` instruction specifies the [base image](https://docs.docker.com/glossary/#base-image) from which you are building. 
 
 For comments, buildKit treats <u>lines that begin with `#` as a comment</u>, unless the line is a valid parser directive. A `#` marker anywhere else in a line is treated as an argument. This allows statements like:
 
@@ -936,5 +934,209 @@ It **must** be a useful tool for me.
 [Dockerfile Examples](https://github.com/dockersamples)
 
 ### 6.2 Efficient Layer Caching
-### 6.1 Image Size and Security
+When you build the same Docker image multiple times, knowing how to optimize the build cache is a great tool for making sure the builds run fast.
+
+So, **how does the build cache work**?
+
+The following example shows a small Dockerfile for a program written in C.
+
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM ubuntu:latest
+
+RUN apt-get update && apt-get install -y build-essentials
+COPY main.c Makefile /src/
+WORKDIR /src/
+RUN make build
+```
+
+==Each instruction in this Dockerfile translates to a layer=={.info} in your final image. You can think of image layers as a *stack*, with each layer adding more content on top of the layers that came before it:
+![Image layer diagram](cache-stack.png)
+Whenever a layer changes, that layer will need to be re-built. For example, suppose you make a change to your program in the `main.c` file. After this change, the `COPY` command will have to run again in order for those changes to appear in the image. In other words, Docker will invalidate the cache for this
+layer.
+
+If a layer changes, ==all other layers that come after it are also affected=={.tip}. When the layer with the `COPY` command gets invalidated, all layers that follow will need to run again, too:
+![Image layer diagram, showing cache invalidation](cache-stack-invalidated.png)
+
+And that's the Docker build cache in a nutshell. Once a layer changes, then <u>all downstream layers need to be rebuilt as well</u>. Even if they wouldn't build anything differently, they still need to re-run.
+
+### 6.3 Image Size and Security
+#### 6.3.1 Multi-stage builds
+Multi-stage builds are useful to anyone who has struggled to optimize Dockerfiles while keeping them easy to read and maintain.
+
+##### 6.3.1.1 Use multi-stage builds
+With multi-stage builds, you use **multiple `FROM` statements** in your Dockerfile. Each `FROM` instruction can use a different base, and ==each of them begins a new stage of the build=={.tip}. You can selectively copy artifacts from one stage to
+another, leaving behind everything you don't want in the final image.
+
+The following Dockerfile has two separate stages: one for building a binary,and <u>another where the binary gets copied from the first stage into the next stage</u>.
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM golang:{{% param "example_go_version" %}}
+WORKDIR /src
+COPY <<EOF ./main.go
+package main
+
+import "fmt"
+
+func main() {
+  fmt.Println("hello, world")
+}
+EOF
+RUN go build -o /bin/hello ./main.go
+
+FROM scratch
+COPY --from=0 /bin/hello /bin/hello
+CMD ["/bin/hello"]
+```
+
+You only need the **single** Dockerfile. No need for a separate build script. Just run `docker build`.
+
+```console
+$ docker build -t hello .
+```
+
+The end result is a tiny production image with nothing but the binary inside.None of the build tools required to build the application are included in the resulting image.
+
+How does it work? The second `FROM` instruction starts a new build stage with
+the `scratch` image as its base. **The `COPY --from=0` line copies just the built artifact from the previous stage into this new stage.** The Go SDK and any intermediate artifacts are left behind, and not saved in the final image.
+
+##### 6.3.1.2 Name your build stages
+
+By default, the stages aren't named, and you refer to them by their integer
+number, starting with 0 for the first `FROM` instruction. However, you can
+name your stages, by adding an `AS <NAME>` to the `FROM` instruction. This
+example improves the previous one by naming the stages and using the name in
+the `COPY` instruction. This means that even if the instructions in your
+Dockerfile are re-ordered later, the `COPY` doesn't break.
+
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM golang:{{% param "example_go_version" %}} AS build
+WORKDIR /src
+COPY <<EOF /src/main.go
+package main
+
+import "fmt"
+
+func main() {
+  fmt.Println("hello, world")
+}
+EOF
+RUN go build -o /bin/hello ./main.go
+
+FROM scratch
+COPY --from=build /bin/hello /bin/hello
+CMD ["/bin/hello"]
+```
+
+##### 6.3.1.3 Stop at a specific build stage
+
+When you build your image, you don't necessarily need to build the entire Dockerfile including every stage. You can **specify a target build stage**. The following command assumes you are using the previous `Dockerfile` but <u>stops at the stage named `build`</u>:
+```console
+$ docker build --target build -t hello .
+```
+A few scenarios where this might be useful are:
+- Debugging a specific build stage
+- Using a `debug` stage with all debugging symbols or tools enabled, and a
+  lean `production` stage
+- Using a `testing` stage in which your app gets populated with test data, but
+  building for production using a different stage which uses real data
+
+##### 6.3.1.4 Use an external image as a stage
+When using multi-stage builds, ==you aren't limited to copying from stages you created earlier in your Dockerfile.=={.tip} You can use the `COPY --from` instruction to **copy from a separate image**, either using the **local image name, a tag available locally or on a Docker registry, or a tag ID**. The Docker client pulls the image if necessary and copies the artifact from there. The syntax is:
+
+```dockerfile
+COPY --from=nginx:latest /etc/nginx/nginx.conf /nginx.conf
+```
+
+##### 6.3.1.5 Use a previous stage as a new stage
+
+You can pick up where a previous stage left off by referring to it when using the `FROM` directive. For example:
+
+```dockerfile
+# syntax=docker/dockerfile:1
+
+FROM alpine:latest AS builder
+RUN apk --no-cache add build-base
+
+FROM builder AS build1
+COPY source1.cpp source.cpp
+RUN g++ -o /binary source.cpp
+
+FROM builder AS build2
+COPY source2.cpp source.cpp
+RUN g++ -o /binary source.cpp
+```
+
+##### 6.3.1.6 Differences between legacy builder and BuildKit
+The **legacy** Docker Engine builder processes **all stages of a Dockerfile leading up to the selected `--target`.** It will build a stage even if the selected target <u>doesn't depend on that stage</u>.
+
+BuildKit <u>only builds the stages that the target stage depends on</u>.
+
+For example, given the following Dockerfile:
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM ubuntu AS base
+RUN echo "base"
+
+FROM base AS stage1
+RUN echo "stage1"
+
+FROM base AS stage2
+RUN echo "stage2"
+```
+With BuildKit enabled, building the `stage2` target in this Dockerfile means <u>only `base` and `stage2` are processed. There is no dependency on `stage1`, so it's skipped</u>.
+
+```console
+$ DOCKER_BUILDKIT=1 docker build --no-cache -f Dockerfile --target stage2 .
+[+] Building 0.4s (7/7) FINISHED                                                                    
+ => [internal] load build definition from Dockerfile                                            0.0s
+ => => transferring dockerfile: 36B                                                             0.0s
+ => [internal] load .dockerignore                                                               0.0s
+ => => transferring context: 2B                                                                 0.0s
+ => [internal] load metadata for docker.io/library/ubuntu:latest                                0.0s
+ => CACHED [base 1/2] FROM docker.io/library/ubuntu                                             0.0s
+ => [base 2/2] RUN echo "base"                                                                  0.1s
+ => [stage2 1/1] RUN echo "stage2"                                                              0.2s
+ => exporting to image                                                                          0.0s
+ => => exporting layers                                                                         0.0s
+ => => writing image sha256:f55003b607cef37614f607f0728e6fd4d113a4bf7ef12210da338c716f2cfd15    0.0s
+```
+
+On the other hand, building the same target without BuildKit results in <u>all stages being processed</u>:
+
+```console
+$ DOCKER_BUILDKIT=0 docker build --no-cache -f Dockerfile --target stage2 .
+Sending build context to Docker daemon  219.1kB
+Step 1/6 : FROM ubuntu AS base
+ ---> a7870fd478f4
+Step 2/6 : RUN echo "base"
+ ---> Running in e850d0e42eca
+base
+Removing intermediate container e850d0e42eca
+ ---> d9f69f23cac8
+Step 3/6 : FROM base AS stage1
+ ---> d9f69f23cac8
+Step 4/6 : RUN echo "stage1"
+ ---> Running in 758ba6c1a9a3
+stage1
+Removing intermediate container 758ba6c1a9a3
+ ---> 396baa55b8c3
+Step 5/6 : FROM base AS stage2
+ ---> d9f69f23cac8
+Step 6/6 : RUN echo "stage2"
+ ---> Running in bbc025b93175
+stage2
+Removing intermediate container bbc025b93175
+ ---> 09fc3770a9c4
+Successfully built 09fc3770a9c4
+```
+
+The legacy builder <u>processes `stage1`, even if `stage2` doesn't depend on it</u>.
+
+
+#### 6.3.2 Security
+For security thing, refer to link below:
+[Explore top posts about Security](https://app.daily.dev/tags/security?ref=roadmapsh)
+
 
