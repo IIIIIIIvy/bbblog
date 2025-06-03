@@ -1140,3 +1140,147 @@ For security thing, refer to link below:
 [Explore top posts about Security](https://app.daily.dev/tags/security?ref=roadmapsh)
 
 
+## 7. Container Registries
+A Container Registry is a centralized storage and distribution system for Docker container images. It allows developers to easily share and deploy applications in the form of these images. Container registries play a crucial role in the deployment of containerized applications, as they provide a fast, reliable, and secure way to distribute container images across various production environments.
+
+### 7.1 DockerHub
+Docker Hub is a cloud-based registry service that serves as the primary public repository for Docker container images. It allows users to store, share, and distribute Docker images, offering both free public repositories and paid private ones and integrates seamlessly with Docker CLI, enabling easy pushing and pulling of images. It features **official images maintained by software vendors**, automated builds linked to source code repositories, and webhooks for triggering actions based on repository events.
+
+#### 7.1.1 DockerHub
+It is a useful tool, but I don't have access to it, so I just put its link here: [DockerHub](https://hub.docker.com/) 
+
+#### 7.1.2 DockerHub Repositories
+A Docker Hub repository is a collection of container images, enabling you to store, manage, and share Docker images publicly or privately. Each repository serves as a dedicated space where you can store images associated with a particular application, microservice, or project. **Content in repositories is
+organized by tags**, which represent different versions of the same application, allowing users to pull the right version when needed.
+
+Refer to [this link](https://docs.docker.com/docker-hub/repos/) to learn how to create/manage/archive/delete a repository in detail.
+
+#### 7.1.3 DockerHub Webhooks
+You can use webhooks to cause an action in another service in response to a push event in the repository. Webhooks are POST requests sent to a URL you define in Docker Hub.
+
+Refer to [this link](https://docs.docker.com/docker-hub/repos/manage/webhooks/) to learn how to create or view a webhook in detail.
+
+### 7.2 DockerHub Alternatives
+Container images can be stored in many different registries, not just Dockerhub. Most major cloud platforms now provide container registries such as =="Artifact Registry" on Google Cloud Platform, Elastic Container Registry on AWS and Azure Container Registry on Microsoft Azure. GitHub also provides it's own registry which is useful when container builds are included in your GitHub Actions workflow.=={.tip}
+
+List relative link here for these 4 registries mentioned above:
+- [Artifact Registry on Google Cloud Platform](https://cloud.google.com/artifact-registry)
+- [Elastic Container Registry on AWS](https://aws.amazon.com/ecr/)
+- [Azure Container Registry on Microsoft Azure](https://azure.microsoft.com/en-in/products/container-registry)
+- [GitHub Container Registry on GitHub](https://docs.github.com/en/packages/guides/about-github-container-registry)
+
+
+### 7.3 Image Tagging Best Practices
+Docker image tagging best practices center on **creating clear, consistent, and informative labels**. To ensure efficient image management and improve collaboration across your organization, try practices like:
+- Adopt **semantic versioning** for releases
+- Avoid the ambiguous "latest" tag in production
+- Include relevant metadata like build dates or Git commit hashes
+- Implement a strategy distinguishing between environments 
+- Use descriptive tags for variants
+- Automate tagging in CI/CD pipelines 
+- Regularly clean up old tags 
+- Document your conventions to maintain clarity and facilitate team-wide adoption. 
+
+#### 7.3.1 Build, tag, and publish an image
+In this guide, you will learn the following:
+
+- **Building** images - the process of building an image based on a `Dockerfile`
+- **Tagging** images - the process of <u>giving an image a name, which also determines where the image can be distributed</u>
+- **Publishing** images - the process to distribute or share the newly created image using a container registry
+
+##### 7.3.1.1 Building images
+Most often, images are built using a Dockerfile. The most basic `docker build` command might look like the following:
+
+```bash
+docker build .
+```
+
+The final `.` in the command provides the path or URL to the [build context](https://docs.docker.com/build/concepts/context/#what-is-a-build-context). At this location, the builder will find the `Dockerfile` and other referenced files.
+
+When you run a build, the builder pulls the base image, if needed, and then runs the instructions specified in the Dockerfile.
+
+With the previous command, the image will <u>have no name</u>, but the output will <u>provide the ID of the image</u>. As an example, the previous command might produce the following output:
+
+```console
+$ docker build .
+[+] Building 3.5s (11/11) FINISHED                                              docker:desktop-linux
+ => [internal] load build definition from Dockerfile                                            0.0s
+ => => transferring dockerfile: 308B                                                            0.0s
+ => [internal] load metadata for docker.io/library/python:3.12                                  0.0s
+ => [internal] load .dockerignore                                                               0.0s
+ => => transferring context: 2B                                                                 0.0s
+ => [1/6] FROM docker.io/library/python:3.12                                                    0.0s
+ => [internal] load build context                                                               0.0s
+ => => transferring context: 123B                                                               0.0s
+ => [2/6] WORKDIR /usr/local/app                                                                0.0s
+ => [3/6] RUN useradd app                                                                       0.1s
+ => [4/6] COPY ./requirements.txt ./requirements.txt                                            0.0s
+ => [5/6] RUN pip install --no-cache-dir --upgrade -r requirements.txt                          3.2s
+ => [6/6] COPY ./app ./app                                                                      0.0s
+ => exporting to image                                                                          0.1s
+ => => exporting layers                                                                         0.1s
+ => => writing image sha256:9924dfd9350407b3df01d1a0e1033b1e543523ce7d5d5e2c83a724480ebe8f00    0.0s
+```
+
+With the previous output, you could start a container by using the referenced image:
+```console
+docker run sha256:9924dfd9350407b3df01d1a0e1033b1e543523ce7d5d5e2c83a724480ebe8f00
+```
+
+That name certainly <u>isn't memorable</u>, which is where tagging becomes useful.
+
+
+##### 7.3.1.2 Tagging images
+Tagging images is the method to provide an image with a memorable name. However, there is a **structure** to the name of an image. A full image name has the following structure:
+
+```text
+[HOST[:PORT_NUMBER]/]PATH[:TAG]
+```
+
+- `HOST`: The ==optional registry hostname=={.tip} where the image is located. If no host is specified, Docker's public registry at **`docker.io` is used by default**.
+- `PORT_NUMBER`: ==The registry port number if a hostname is provided=={.tip}
+- `PATH`: The path of the image, consisting of slash-separated components. **For Docker Hub, the format follows `[NAMESPACE/]REPOSITORY`**, where namespace is either a user's or organization's name. **If no namespace is specified, `library` is used,** which is the namespace for Docker Official Images.
+- `TAG`: ==A custom, human-readable identifier=={.tip} that's typically used to identify different versions or variants of an image. **If no tag is specified, `latest` is used by default.**
+
+Some examples of image names include:
+
+- `nginx`, equivalent to `docker.io/library/nginx:latest`: this pulls an image from the `docker.io` registry, the `library` namespace, the `nginx` image repository, and the `latest` tag.
+- `docker/welcome-to-docker`, equivalent to `docker.io/docker/welcome-to-docker:latest`: this pulls an image from the `docker.io` registry, the `docker` namespace, the `welcome-to-docker` image repository, and the `latest` tag
+- `ghcr.io/dockersamples/example-voting-app-vote:pr-311`: this pulls an image from the GitHub Container Registry, the `dockersamples` namespace, the `example-voting-app-vote` image repository, and the `pr-311` tag
+
+To tag an image during a build, add the `-t` or `--tag` flag:
+
+```console
+docker build -t my-username/my-image .
+```
+
+If you've already built an image, you can add another tag to the image by using the [`docker image tag`](https://docs.docker.com/engine/reference/commandline/image_tag/) command:
+
+```console
+docker image tag my-username/my-image another-username/another-image:v1
+```
+
+##### 7.3.1.3 Publishing images
+Once you have an image built and tagged, you're ready to push it to a registry. To do so, use the [`docker push`](https://docs.docker.com/engine/reference/commandline/image_push/) command:
+```console
+docker push my-username/my-image
+```
+Within a few seconds, all of the layers for your image will be pushed to the registry.
+
+#### 7.3.2 Docker Image Tagging Strategy
+
+Managing tags for Docker images according to software releases is crucial for version control and ensuring that the correct image is deployed. Here are some ways to manage tags effectively:
+
+1. [**Semantic Versioning**](https://semver.org/): Use semantic versioning (SemVer) for your software releases. This approach follows a ==three-part versioning scheme: MAJOR.MINOR.PATCH.=={tip} Tag your Docker images with the corresponding SemVer tag. For example, if your software release is version 1.2.3, tag the Docker image as “1.2.3”.
+
+2. **Git Tags**: If you use Git for version control, consider creating Git tags for each software release. These tags can be directly used as Docker image tags. For instance, if you have a Git tag “v1.2.3” for a release, use the same tag as the Docker image tag.
+
+3. **Branch Names**: If you follow a branching strategy for software development, you can use branch names to manage tags. For example, if you have a branch named “release/1.2.3” for a specific release, tag the corresponding Docker image as “1.2.3”.
+
+4. **Date-Based Tags**: Another approach is to use date-based tags for Docker images. For each software release, append the release date to the tag. For example, if the release date is June 30, 2023, tag the Docker image as “1.2.3–20230630”. This provides a clear indication of when the image was built.
+
+5. **Latest Tag**: Additionally, consider using a “latest” tag for the most recent stable release of your software. This allows you to easily refer to the latest version without specifying the exact version number. For instance, tag the Docker image of the latest stable release as “latest”.
+
+6. **Git Commit Hash**: Instead of relying solely on version numbers or dates, you can use the Git commit hash to uniquely identify a specific software release. Tag your Docker images with the corresponding commit hash, which provides a high level of traceability. For example, tag the Docker image with “1.2.3-sha1abcde”.
+
+Remember to choose a tagging strategy that aligns with your team’s workflow and requirements. Consistency and clarity in tag naming conventions are essential to avoid confusion and ensure smooth version control of Docker images.
