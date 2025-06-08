@@ -1284,3 +1284,459 @@ Managing tags for Docker images according to software releases is crucial for ve
 6. **Git Commit Hash**: Instead of relying solely on version numbers or dates, you can use the Git commit hash to uniquely identify a specific software release. Tag your Docker images with the corresponding commit hash, which provides a high level of traceability. For example, tag the Docker image with “1.2.3-sha1abcde”.
 
 Remember to choose a tagging strategy that aligns with your team’s workflow and requirements. Consistency and clarity in tag naming conventions are essential to avoid confusion and ensure smooth version control of Docker images.
+
+
+## 8. Running Containers
+### 8.1 Docker Run
+The `docker run` command <u>creates and starts a new container</u> from a specified image. It combines `docker create` and `docker start` operations, offering [<u>a range of options</u>](https://docs.docker.com/engine/reference/commandline/run/) to customize the container's runtime environment. Users can set environment variables, map ports and volumes, define network connections, and specify resource limits. The command supports detached mode for background execution, interactive mode for shell access, and the ability to override the default command defined in the image. Common flags include `-d` for detached mode, `-p` for port mapping, `-v` for volume mounting, and `--name` for assigning a custom container name. Understanding `docker run` is fundamental to effectively deploying and managing Docker containers.
+
+### 8.2 Docker Compose
+Docker Compose is a tool for defining and running **multi-container** applications. It is the key to unlocking a streamlined and efficient development and deployment experience.
+
+Compose simplifies the control of your entire application stack, making it easy to manage ==services, networks, and volumes=={.info} in a single YAML configuration file. Then, with a single command, you create and start all the services from your configuration file.
+
+Compose works in all environments; production, staging, development, testing, as well as CI workflows. It also has commands for managing the whole lifecycle of your application:
+- Start, stop, and rebuild services
+- View the status of running services
+- Stream the log output of running services
+- Run a one-off command on a service
+
+#### 8.2.1 How Compose works
+With Docker Compose you use a YAML configuration file, known as the **Compose file**, to configure your application’s services, and then you create and start all the services from your configuration with the **Compose CLI**. 
+
+The Compose file, or `compose.yaml` file, follows the rules provided by the [Compose Specification](https://docs.docker.com/reference/compose-file/) in how to define multi-container applications. This is the Docker Compose implementation of the formal Compose Specification. 
+
+##### 8.2.1.1 The Compose file
+
+The default path for a Compose file is `compose.yaml` (preferred) or `compose.yml` that is placed in the working directory.
+
+Compose also supports `docker-compose.yaml` and `docker-compose.yml` for backwards compatibility of earlier versions.
+
+If both files exist, Compose prefers the canonical `compose.yaml`.
+
+You can use [fragments](https://docs.docker.com/reference/compose-file/fragments/) and [extensions](https://docs.docker.com/reference/compose-file/extension/) to keep your Compose file efficient and easy to maintain.
+
+==Multiple=={.info} Compose files can be [merged](https://docs.docker.com/reference/compose-file/merge/) together to define the application model. The combination of YAML files is implemented by appending or overriding YAML elements based on the Compose file order you set. 
+Simple attributes and maps get overridden by the **highest order** Compose file, lists get merged by appending. Relative
+paths are resolved based on the **first** Compose file's parent folder, whenever complimentary files being merged are hosted in other folders. As some Compose file elements can both be expressed as single strings or complex objects, merges apply to the expanded form. For more information, see [Working with multiple Compose files](https://docs.docker.com/compose/how-tos/multiple-compose-files/).
+
+If you want to ==reuse=={.info} other Compose files, or factor out parts of your application model into separate Compose files, you can also use [`include`](https://docs.docker.com/reference/compose-file/include/). This is useful if your Compose application is dependent on another application which is managed by a different team, or needs to be shared with others.
+
+##### 8.2.1.2 CLI
+
+The Docker CLI lets you interact with your Docker Compose applications through the `docker compose` command, and its subcommands. Using the CLI, you can manage the lifecycle of your multi-container applications defined in the `compose.yaml` file. The CLI commands enable you to start, stop, and configure your applications effortlessly.
+
+To **start** all the services defined in your `compose.yaml` file:
+
+```console
+$ docker compose up
+```
+
+To **stop and remove** the running services:
+
+```console
+$ docker compose down 
+```
+
+If you want to **monitor the output** of your running containers and debug issues, you can view the logs with: 
+
+```console
+$ docker compose logs
+```
+
+To **list all the services** along with their current status:
+
+```console
+$ docker compose ps
+```
+
+For a full list of all the Compose CLI commands, see the [reference documentation](https://docs.docker.com/reference/cli/docker/compose/).
+
+##### 8.2.1.3 Illustrative example
+
+The following example illustrates the Compose concepts outlined above. The example is *non-normative*.
+
+Consider an application split into a *frontend web application* and a *backend service*.
+
+The frontend is configured at runtime with an HTTP configuration file managed by infrastructure, providing an external domain name, and an HTTPS server certificate injected by the platform's secured secret store.
+
+The backend stores data in a persistent volume.
+
+Both services communicate with each other on an isolated back-tier network, while the frontend is also connected to a front-tier network and exposes port 443 for external usage.
+
+![Compose application example](compose-application.webp)
+
+The example application is composed of the following parts:
+
+- 2 services, backed by Docker images: `webapp` and `database`
+- 1 secret (HTTPS certificate), injected into the frontend
+- 1 configuration (HTTP), injected into the frontend
+- 1 persistent volume, attached to the backend
+- 2 networks
+
+```yml
+services:
+  frontend:
+    image: example/webapp
+    ports:
+      - "443:8043"
+    networks:
+      - front-tier
+      - back-tier
+    configs:
+      - httpd-config
+    secrets:
+      - server-certificate
+
+  backend:
+    image: example/database
+    volumes:
+      - db-data:/etc/data
+    networks:
+      - back-tier
+
+volumes:
+  db-data:
+    driver: flocker
+    driver_opts:
+      size: "10GiB"
+
+configs:
+  httpd-config:
+    external: true
+
+secrets:
+  server-certificate:
+    external: true
+
+networks:
+  # The presence of these objects is sufficient to define them
+  front-tier: {}
+  back-tier: {}
+```
+
+The `docker compose up` command starts the `frontend` and `backend` services, creates the necessary networks and volumes, and injects the configuration and secret into the frontend service.
+
+`docker compose ps` provides a snapshot of the current state of your services, making it easy to see which containers are running, their status, and the ports they are using:
+
+```text
+$ docker compose ps
+
+NAME                IMAGE                COMMAND                  SERVICE             CREATED             STATUS              PORTS
+example-frontend-1  example/webapp       "nginx -g 'daemon of…"   frontend            2 minutes ago       Up 2 minutes        0.0.0.0:443->8043/tcp
+example-backend-1   example/database     "docker-entrypoint.s…"   backend             2 minutes ago       Up 2 minutes
+```
+#### 8.2.2 Other references
+Refer to [here](https://docs.docker.com/compose/) to get more infomation about:
+- Why use Compose?
+- Install Compose
+- View the release notes
+- Explore the [Compose file reference](https://docs.docker.com/reference/compose-file/): with this reference, you can find information on defining: 
+    - version
+    - services
+    - networks
+    - volumes
+    - configs
+    - secrets
+
+#### 8.2.3 Curated Docker Compose Samples
+[These](https://github.com/docker/awesome-compose?tab=readme-ov-file) samples provide a starting point for how to integrate different services using a Compose file and to manage their deployment with Docker Compose.
+Useful in local development environments such as project setups, tinkering with software stacks, etc. These samples must **not** be deployed in production environments.
+
+
+
+## 9. Container Security
+### 9.1 Runtime Security
+Runtime security in Docker focuses on ==ensuring the safety and integrity of containers during their execution=={.tip}, safeguarding against vulnerabilities and malicious activities that could arise while the containerized application is running. This involves monitoring container behavior for anomalies, implementing access controls to limit permissions, and employing tools to detect and respond to suspicious activity in real time. Effective runtime security also ensures that only verified images are deployed and continuously audits the system to maintain compliance, thereby providing a robust defense layer to prevent exploits and maintain the desired security posture throughout the container lifecycle.
+
+There are four major areas to consider when reviewing Docker security:
+
+- The <u>intrinsic security</u> of the kernel and its support for **namespaces** and **cgroups**
+- The attack surface of the **Docker daemon** itself
+- Loopholes in the **container configuration profile**, either by default, or when customized by users.
+- The "hardening" security features of the **kernel** and how they interact with containers.
+
+#### 9.1.1 Kernel namespaces
+When you start a container with `docker run`, behind the scenes <u>Docker creates a set of namespaces and control groups for the container</u>.
+
+Namespaces provide the ==first and most straightforward form of **isolation**=={.tip}. Processes running within a container cannot see, and even less affect, processes running in another container, or in the host system.
+
+Each container also ==gets its own network stack=={.tip}, meaning that a container doesn't get privileged access to the sockets or interfaces of another container. Of course, if the host system is setup accordingly, containers can interact with each other through their respective network interfaces — just like they can interact with external hosts. When you specify public ports for your containers or use links then IP traffic is allowed between containers. They can ping each other, send/receive UDP packets, and establish TCP connections, but that can be restricted if necessary. From a network architecture point of view, all containers on a given Docker host are sitting on bridge interfaces. This means that they are just like physical machines connected through a common Ethernet switch; no more, no less.
+
+How mature is the code providing kernel namespaces and private networking? Kernel namespaces were introduced between kernel version
+2.6.15 and 2.6.26.
+This means that since July 2008 (date of the 2.6.26 release), namespace code has been exercised and scrutinized on a large number of production systems. 
+
+#### 9.1.2 Control groups
+Control Groups are another key component of Linux containers. They implement **resource accounting and limiting**. ==They provide many useful metrics, but they also help ensure that each container gets its fair share of memory, CPU, disk I/O; and, more importantly, that a single container cannot bring the system down by exhausting one of those resources.=={.tip}
+
+So while they do not play a role in preventing one container from accessing or affecting the data and processes of another container, they
+are essential to fend off some denial-of-service attacks. They are particularly important on multi-tenant platforms, like public and private PaaS, to guarantee a consistent uptime (and performance) even when some applications start to misbehave.
+
+Control Groups have been around for a while as well: the code was started in 2006, and initially merged in kernel 2.6.24.
+
+#### 9.1.3 Docker daemon attack surface
+
+Running containers (and applications) with Docker implies running the
+Docker daemon. <u>This daemon requires `root` privileges unless you opt-in
+to Rootless mode</u>, and you should therefore be aware of some important details.
+
+First of all, only **trusted users** should be allowed to control your Docker daemon. This is a direct consequence of some powerful Docker features. Specifically, Docker allows you to share a directory between the Docker host and a guest container; and it allows you to do so without limiting the access rights of the container. This means that you can start a container where the `/host` directory is the `/` directory on your host; and the container can alter your host filesystem without any restriction. This is similar to how virtualization systems allow filesystem resource sharing. Nothing prevents you from sharing your root filesystem (or even your root block device) with a virtual machine.
+
+This has a strong security implication: for example, if you instrument Docker from a web server to provision containers through an API, you should be even more careful than usual with parameter checking, to make sure that a malicious user cannot pass crafted parameters causing Docker to create arbitrary containers.
+
+For this reason, the REST API endpoint (used by the Docker CLI to
+communicate with the Docker daemon) changed in Docker 0.5.2, and now
+uses a Unix socket instead of a TCP socket bound on 127.0.0.1 (the
+latter being prone to cross-site request forgery attacks if you happen to run Docker directly on your local machine, outside of a VM). You can then
+use traditional Unix permission checks to limit access to the control
+socket.
+
+The daemon is also potentially **vulnerable to other inputs**, such as image loading from either disk with `docker load`, or from the network with `docker pull`. As of Docker 1.3.2, images are now extracted in a chrooted subprocess on Linux/Unix platforms, being the first-step in a wider effort toward privilege separation. As of Docker 1.10.0, all images are stored and accessed by the cryptographic checksums of their contents, limiting the possibility of an attacker causing a collision with an existing image.
+
+Finally, if you run Docker on a server, it is recommended to run exclusively Docker on the server, and move all other services within containers controlled by Docker. Of course, it is fine to keep your favorite admin tools (probably at least an SSH server), as well as existing monitoring/supervision processes, such as NRPE and collectd.
+
+#### 9.1.4 Linux kernel capabilities
+By default, Docker starts containers with **a restricted set of capabilities**. What does that mean?
+
+Capabilities turn the binary "root/non-root" dichotomy into a fine-grained access control system. Processes (like web servers) that <u>just need to bind on a port below 1024 do not need to run as root: they can just be granted the `net_bind_service` capability instead</u>. And there are many other capabilities, for almost all the specific areas where root privileges are usually needed. This means a lot for container security.
+
+Typical servers run several processes as `root`, including the SSH daemon,
+`cron` daemon, logging daemons, kernel modules, network configuration tools, and more. <u>A container is different, because almost all of those tasks are handled by the infrastructure around the container</u>:
+
+ - **SSH access** are typically managed by a single server running on
+   the Docker host
+ - `cron`, when necessary, should run as a <u>user process</u>, dedicated and tailored for the app that needs its scheduling service, rather than as a platform-wide facility
+ - **Log management** is also typically handed to Docker, or to
+   third-party services like Loggly or Splunk
+ - **Hardware management** is irrelevant, meaning that you never need to
+   run `udevd` or equivalent daemons within containers
+ - **Network management** happens outside of the containers, enforcing
+   separation of concerns as much as possible, meaning that a container
+   should never need to perform `ifconfig`, `route`, or ip commands (except when a container is specifically engineered to behave like a router or firewall, of course)
+
+This means that ==in most cases, containers do not need "real" root
+privileges at all*=={.tip} And therefore, containers can run with a reduced capability set; meaning that =="root" within a container has much less privileges than the real "root"=={.tip}. For instance, it is possible to:
+ - Deny all "mount" operations
+ - Deny access to raw sockets (to prevent packet spoofing)
+ - Deny access to some filesystem operations, like creating new device
+   nodes, changing the owner of files, or altering attributes (including
+   the immutable flag)
+ - Deny module loading
+
+This means that ==even if an intruder manages to escalate to root within a
+container, it is much harder to do serious damage, or to escalate to the host.=={.tip}
+
+This doesn't affect regular web apps, but reduces the vectors of attack by
+malicious users considerably. By default Docker drops all capabilities except those needed, <u>an allowlist instead of a denylist approach</u>. You can see a full list of available capabilities in Linux manpages.
+
+One primary **risk** with running Docker containers is that the default set of capabilities and mounts given to a container may provide **incomplete isolation**, either independently, or when used in combination with kernel vulnerabilities.
+
+Docker supports the addition and removal of capabilities, allowing use of a non-default profile. This may make Docker more secure through capability removal, or less secure through the addition of capabilities.
+The best practice for users would be to ==remove all capabilities except
+those explicitly required for their processes=={.tip}.
+
+#### 9.1.5 Docker Content Trust signature verification
+Docker Engine can be configured to **only run signed images**. The Docker Content Trust signature verification feature is built directly into the `dockerd` binary. This is configured in the Dockerd configuration file. 
+
+To enable this feature, trustpinning can be configured in `daemon.json`, whereby only repositories signed with a user-specified root key can be pulled and run.
+  
+This feature provides more insight to administrators than previously available with the CLI for enforcing and performing image signature verification. 
+
+#### 9.1.6 Other kernel security features
+
+Capabilities are just one of the many security features provided by
+modern Linux kernels. It is also possible to ==leverage existing, well-known systems like TOMOYO, AppArmor, SELinux, GRSEC, etc. with
+Docker=={.tip}.
+
+While Docker currently only enables capabilities, <u>it doesn't interfere
+with the other systems</u>. This means that there are many different ways to harden a Docker host. Here are a few examples.
+
+ - You can run a kernel with GRSEC and PAX. This adds many safety
+   checks, both at compile-time and run-time; it also defeats many
+   exploits, thanks to techniques like address randomization. It doesn't
+   require Docker-specific configuration, since those security features
+   apply system-wide, independent of containers.
+ - If your distribution comes with security model templates for
+   Docker containers, you can use them out of the box. For instance, we
+   ship a template that works with AppArmor and Red Hat comes with SELinux
+   policies for Docker. These templates provide an extra safety net (even
+   though it overlaps greatly with capabilities).
+ - You can define your own policies using your favorite access control
+   mechanism.
+
+Just as you can use third-party tools to augment Docker containers, including special network topologies or shared filesystems, tools exist to harden Docker containers without the need to modify Docker itself.
+
+#### 9.1.7 Conclusions
+
+Docker containers are, by default, quite secure; especially if you
+run your processes as non-privileged users inside the container.
+
+You can add an extra layer of safety by enabling AppArmor, SELinux,
+GRSEC, or another appropriate hardening system.
+
+### 9.2 Image Security ———— Content trust in Docker
+Image security is a crucial aspect of deploying Docker containers in your environment. ==Ensuring the images you use are secure, up to date, and free of vulnerabilities=={.tip} is essential. In this section, we will review best practices and tools for securing and managing your Docker images. When pulling images from public repositories, always use trusted, official images as a starting point for your containerized applications. Official images are vetted by Docker and are regularly updated with security fixes. You can find these images on the Docker Hub or other trusted registries.
+
+When transferring data among networked systems, trust is a central concern. In particular, when communicating over an untrusted medium such as the internet, it is critical to ensure the integrity and the publisher of all the data a system operates on. You use Docker Engine to push and pull images (data) to a public or private registry. ==Content trust gives you the ability to verify both the integrity and the publisher of all the data received from a registry over any channel=={.tip}.
+
+#### 9.2.1 About Docker Content Trust (DCT)
+Docker Content Trust (DCT) provides the ability to ==use digital signatures for data sent to and received from remote Docker registries=={.tip}. These signatures allow client-side or runtime verification of the integrity and publisher of specific image tags.
+
+Through DCT, image publishers can sign their images, and image consumers can ensure that the images they pull are signed. Publishers could be individuals or organizations manually signing their content, or automated software supply chains signing content as part of their release process.
+
+#### 9.2.2 Image tags and DCT
+An individual image record has the following identifier:
+
+```text
+[REGISTRY_HOST[:REGISTRY_PORT]/]REPOSITORY[:TAG]
+```
+
+A particular image `REPOSITORY` can have multiple tags. For example, `latest` and `3.1.2` are both tags on the `mongo` image. An image publisher can build an image and tag combination many times changing the image with each build.
+
+**DCT is associated with the `TAG` portion of an image**. Each image repository has a set of keys that image publishers use to sign an image tag. Image publishers have discretion on which tags they sign.
+
+An image repository can contain an image with one tag that is signed and another tag that is not. For example, consider the Mongo image repository. The `latest` tag could be unsigned while the `3.1.6` tag could be signed. <u>It is the responsibility of the image publisher to decide if an image tag is signed or not</u>.
+
+Publishers can choose to sign a specific tag or not. As a result, <u>the content of an unsigned tag and that of a signed tag with the same name may not match</u>. For example, a publisher can push a tagged image `someimage:latest` and sign it. Later, the same publisher can push an unsigned `someimage:latest` image. <u>This second push replaces the last unsigned tag `latest` but does not affect the signed `latest` version.</u> The ability to choose which tags they can sign, allows publishers to iterate over the unsigned version of an image before officially signing it.
+
+==Image consumers can enable DCT to ensure that images they use were signed=={.info}. If a consumer **enables** DCT, they can only pull, run, or build with **trusted** images. Enabling DCT is a bit like applying a "filter" to your registry. Consumers "see" only signed image tags and the less desirable, unsigned image tags are "invisible" to them.
+
+To the consumer who has **not enabled** DCT, nothing about how they work with Docker images changes. Every image is visible regardless of whether it is signed or not.
+
+#### 9.2.3 Docker Content Trust Keys
+==Trust for an image tag is managed through the use of signing **keys**=={.info}. A key set is created when an operation using DCT is first invoked. A key set consists of the following classes of keys:
+
+- An offline key that is the root of DCT for an image tag
+- Repository or tagging keys that sign tags
+- Server-managed keys such as the timestamp key, which provides freshness security guarantees for your repository
+
+> [!WARNING]
+>
+>The root key once lost is not recoverable. If you lose any other key, send an email to Docker Hub Support. This loss also requires manual intervention from every consumer that used a signed tag from this repository prior to the loss.
+
+You should back up the root key somewhere safe. Given that it is only required to create new repositories, it is a good idea to store it offline in hardware.
+
+#### 9.2.4 Signing images with Docker Content Trust
+
+Within the Docker CLI we can sign and push a container image with the `$ docker trust` command syntax. This is built on top of the Notary feature set. For more information, see the Notary GitHub repository.
+
+A prerequisite for signing an image is a Docker Registry with a Notary server attached (Such as the Docker Hub ). Instructions for standing up a self-hosted environment can be found here.
+
+To sign a Docker Image you will need **a delegation key pair**. These keys can be generated locally using `$ docker trust key generate` or generated by a certificate authority.
+
+First we will add the delegation private key to the local Docker trust repository. (By default this is stored in `~/.docker/trust/`). If you are generating delegation keys with `$ docker trust key generate`, the private key is automatically added to the local trust store. If you are importing a separate
+key, you will need to use the `$ docker trust key load` command.
+
+```console
+$ docker trust key generate jeff
+Generating key for jeff...
+Enter passphrase for new jeff key with ID 9deed25:
+Repeat passphrase for new jeff key with ID 9deed25:
+Successfully generated and loaded private key. Corresponding public key available: /home/ubuntu/Documents/mytrustdir/jeff.pub
+```
+
+Or if you have an existing key:
+
+```console
+$ docker trust key load key.pem --name jeff
+Loading key from "key.pem"...
+Enter passphrase for new jeff key with ID 8ae710e:
+Repeat passphrase for new jeff key with ID 8ae710e:
+Successfully imported key from key.pem
+```
+
+Next we will need to add the delegation public key to the Notary server; this is specific to a particular image repository in Notary known as a Global Unique Name (GUN). If this is the first time you are adding a delegation to that
+repository, this command will also initiate the repository, using a local Notary canonical root key. To understand more about initiating a repository, and the role of delegations, head to delegations for content trust.
+
+```console
+$ docker trust signer add --key cert.pem jeff registry.example.com/admin/demo
+Adding signer "jeff" to registry.example.com/admin/demo...
+Enter passphrase for new repository key with ID 10b5e94:
+```
+
+Finally, we will use the delegation private key to sign a particular tag and push it up to the registry.
+
+```console
+$ docker trust sign registry.example.com/admin/demo:1
+Signing and pushing trust data for local image registry.example.com/admin/demo:1, may overwrite remote trust data
+The push refers to repository [registry.example.com/admin/demo]
+7bff100f35cb: Pushed
+1: digest: sha256:3d2e482b82608d153a374df3357c0291589a61cc194ec4a9ca2381073a17f58e size: 528
+Signing and pushing trust metadata
+Enter passphrase for signer key with ID 8ae710e:
+Successfully signed registry.example.com/admin/demo:1
+```
+
+Alternatively, once the keys have been imported an image can be pushed with the `$ docker push` command, by exporting the DCT environmental variable.
+
+```console
+$ export DOCKER_CONTENT_TRUST=1
+
+$ docker push registry.example.com/admin/demo:1
+The push refers to repository [registry.example.com/admin/demo:1]
+7bff100f35cb: Pushed
+1: digest: sha256:3d2e482b82608d153a374df3357c0291589a61cc194ec4a9ca2381073a17f58e size: 528
+Signing and pushing trust metadata
+Enter passphrase for signer key with ID 8ae710e:
+Successfully signed registry.example.com/admin/demo:1
+```
+
+Remote trust data for a tag or a repository can be viewed by the
+`$ docker trust inspect` command:
+
+```console
+$ docker trust inspect --pretty registry.example.com/admin/demo:1
+
+Signatures for registry.example.com/admin/demo:1
+
+SIGNED TAG          DIGEST                                                             SIGNERS
+1                   3d2e482b82608d153a374df3357c0291589a61cc194ec4a9ca2381073a17f58e   jeff
+
+List of signers and their keys for registry.example.com/admin/demo:1
+
+SIGNER              KEYS
+jeff                8ae710e3ba82
+
+Administrative keys for registry.example.com/admin/demo:1
+
+  Repository Key:	10b5e94c916a0977471cc08fa56c1a5679819b2005ba6a257aa78ce76d3a1e27
+  Root Key:	84ca6e4416416d78c4597e754f38517bea95ab427e5f95871f90d460573071fc
+```
+
+Remote Trust data for a tag can be removed by the `$ docker trust revoke` command:
+
+```console
+$ docker trust revoke registry.example.com/admin/demo:1
+Enter passphrase for signer key with ID 8ae710e:
+Successfully deleted signature for registry.example.com/admin/demo:1
+```
+
+#### 9.2.5 Client enforcement with Docker Content Trust
+
+Content trust is disabled by default in the Docker Client. <u>To enable it, set the `DOCKER_CONTENT_TRUST` environment variable to `1`.</u> This prevents users from working with tagged images unless they contain a signature.
+
+When DCT is enabled in the Docker client, `docker` CLI commands that operate on tagged images must either have content signatures or explicit content hashes.
+The commands that operate with DCT are:
+
+* `push`
+* `build`
+* `create`
+* `pull`
+* `run`
+
+For example, with DCT enabled a `docker pull someimage:latest` only succeeds if `someimage:latest` **is signed**. However, an operation with an explicit content hash always succeeds as long as the hash exists:
+
+```console
+$ docker pull registry.example.com/user/image:1
+Error: remote trust data does not exist for registry.example.com/user/image: registry.example.com does not have trust data for registry.example.com/user/image
+
+$ docker pull registry.example.com/user/image@sha256:d149ab53f8718e987c3a3024bb8aa0e2caadf6c0328f1d9d850b2a2a67f2819a
+sha256:ee7491c9c31db1ffb7673d91e9fac5d6354a89d0e97408567e09df069a1687c1: Pulling from user/image
+ff3a5c916c92: Pull complete
+a59a168caba3: Pull complete
+Digest: sha256:ee7491c9c31db1ffb7673d91e9fac5d6354a89d0e97408567e09df069a1687c1
+Status: Downloaded newer image for registry.example.com/user/image@sha256:ee7491c9c31db1ffb7673d91e9fac5d6354a89d0e97408567e09df069a1687c1
+```
+
+
