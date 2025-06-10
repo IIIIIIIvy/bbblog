@@ -1907,3 +1907,417 @@ If your container needs to use a proxy server, see
 
 #### 10.4.2 Network CLI
 Refer to [here](https://docs.docker.com/reference/cli/docker/network/) to view details about managing docker network.
+
+## 11. Developer Experience
+So far, we have focused primarily on getting our container images ready for deploying to production, and haven't focused on the **developer experience**.
+
+**Key DevX Features**:
+1. **Easy/simple to set up**: Using <u>docker compose</u>, we can define the entire environment with a single yaml file. To get started, team members can issue a single command `make compose-up-build` or `make compose-up-build-debug` depending if they want to run the debugger or not.
+
+2. **Ability to iterate without rebuilding the container image**: In order to avoid having to rebuild the container image with every single change, we can use a ==bind mount to mount the code from our host into the container filesystem=={.tip}. For example:
+
+    ```dockerfile
+    - type: bind
+    source: ../05-example-web-application/api-node/
+    target: /usr/src/app/
+    ```
+
+3. **Automatic reloading of the application**:
+    - <u>React Client</u>: We are using <u>Vite</u> for the react client which handles this handles this automatically
+    - <u>Node API</u>: We added <u>nodemon</u> as a development dependency and specify the Docker CMD to use it
+    - <u>Golang API</u>: We added a utility called <u>[air](https://github.com/cosmtrek/air) </u>within <u>Dockerfile.dev</u> which watches for changes and rebuild the app automatically.
+
+4. **Use a debugger**:
+    - <u>React Client</u>: For a react app, you can use the <u>browser developer tools + extensions</u> to debug. I did include <u>react-query-devtools</u> to help debug react query specific things. It is also viewed from within the browser.
+    - <u>Node API</u>: To enable debugging for a NodeJS application we can run the app with the `--inspect` flag. The debug session can then be accessed via a websocket on port *9229*. The additional considerations in this case are to specify that <u>the debugger listen for requests from 0.0.0.0 (any) and to publish port *9229* from the container to localhost</u>.
+    - Golang API: To enable remote debugging for a golang application I installed a tool called <u>[delve](https://github.com/go-delve/delve)</u> within <u>./api-golang/Dockerfile.dev</u>. We then override the command used to run the container to use this tool (see: `docker-compose-debug.yml`)
+
+5. **Executing tests**: We also need the ability to execute our test suites within containers. Again, we can create a custom `docker-compose-test.yml` overlay which modifies the container commands to execute our tests. To build the api images and execute their tests, you can execute `make run-tests` which will use the `test` compose file along with the `dev` compose file to do so.
+
+6. **Continuous integration pipeline for production images**
+7. **Ephemeral environment for each pull request**
+
+### 11.1 Hot Reloading
+Even with layer caching, we don't want to have to rebuild our container image with every code change. Instead, we want the state of our application in the container to reflect changes immediately. We can achieve this through **a combination of bind mounts and hot reloading utilities**!
+
+The full `docker-compose.yml` file can be found [here](https://github.com/sidpalas/devops-directive-docker-course/blob/main/11-development-workflow/docker-compose-dev.yml).
+
+#### 11.1.1 React Frontend
+**Vite** is already designed to handle hot reloading, so all we need to do is **bind mount our source code directory into the container at runtime**.
+
+```dockerfile
+volumes:
+  - type: bind
+    source: ../05-example-web-application/client-react/
+    target: /usr/src/app/
+  - type: volume
+    target: /usr/src/app/node_modules
+```
+Here we can see the source code location is mounted to the path we specified as *WORKDIR* in the `Dockerfile`.
+
+We also add a second volume with **NO** source mounted to the location of the `node_modules` directory, just in case we have installed the node modules locally. This <u>takes precedence over the bind mount and prevents those unwanted files from being mounted in</u>.
+
+#### 11.1.2 Node API
+We will be using **nodemon** to watch for changes and restart the node server.
+
+First, install it as a development dependency:
+
+```console
+npm install --save-dev nodemon
+```
+
+Then, refactor the Dockerfile to have a separate **dev** stage which includes development dependencies:
+
+```dockerfile
+FROM node:19.6-bullseye-slim AS base
+WORKDIR /usr/src/app
+COPY package*.json ./
+
+#------------------------------------------------
+# Separate dev stage with nodemon and different CMD
+FROM base as dev
+RUN --mount=type=cache,target=/usr/src/app/.npm \
+  npm set cache /usr/src/app/.npm && \
+  npm install
+COPY . .
+# "npm run dev" corresponds to "nodemon src/index.js"
+CMD ["npm", "run", "dev"]
+#------------------------------------------------
+
+FROM base as production
+ENV NODE_ENV production
+RUN --mount=type=cache,target=/usr/src/app/.npm \
+  npm set cache /usr/src/app/.npm && \
+  npm ci --only=production
+USER node
+COPY --chown=node:node ./src/ .
+EXPOSE 3000
+CMD [ "node", "index.js" ]
+```
+
+We then can specify the **dev** as the target for our `docker compose build` configuration and add the bind mount to our compose file:
+```dockerfile
+build:
+  context: ../05-example-web-application/api-node/
+  dockerfile: ../../06-building-container-images/api-node/Dockerfile.9
+  target: dev
+volumes:
+  - type: bind
+    source: ../05-example-web-application/api-node/
+    target: /usr/src/app/
+  - type: volume
+    target: /usr/src/app/node_modules
+```
+And our Node API will have hot reloading!
+
+#### 11.1.3 Golang API
+Since golang is a compiled language, for hot reloading, <u>we actually need to recompile with each code change</u>. We will be using **https://github.com/cosmtrek/air** for this.
+
+There is no concept of dev vs. production dependencies within the `go.mod` file, so we can update our Dockerfile to create a separate dev stage and install Air there:
+```dockerfile
+FROM golang:1.19-bullseye AS build-base
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+  --mount=type=cache,target=/root/.cache/go-build \
+  go mod download
+
+#------------------------------------------------
+FROM build-base AS dev
+# Install air for hot reload & delve for debugging
+RUN go install github.com/cosmtrek/air@latest && \
+  go install github.com/go-delve/delve/cmd/dlv@latest
+COPY . .
+CMD ["air", "-c", ".air.toml"]
+#------------------------------------------------
+
+FROM build-base AS build-production
+RUN useradd -u 1001 nonroot
+COPY . .
+RUN go build \
+  -ldflags="-linkmode external -extldflags -static" \
+  -tags netgo \
+  -o api-golang
+
+FROM scratch
+ENV GIN_MODE=release
+WORKDIR /
+COPY --from=build-production /etc/passwd /etc/passwd
+COPY --from=build-production /app/healthcheck/healthcheck healthcheck
+COPY --from=build-production /app/api-golang api-golang
+USER nonroot
+EXPOSE 8080
+CMD ["/api-golang"]
+```
+
+With this updated, we can <u>modify the docker compose to target the dev stage and bind mount the source code</u>:
+```dockerfile
+build:
+  context: ../05-example-web-application/api-golang/
+  dockerfile: ../../06-building-container-images/api-golang/Dockerfile.8
+  target: dev
+volumes:
+  - type: bind
+    source: ../05-example-web-application/api-golang/
+    target: /app/
+```
+
+### 11.2 Debuggers in Docker
+In order to make developing with containers competitive with developing locally, we need the ability to run and attach to debuggers inside the container.
+
+#### 11.2.1 Aside: Multiple Docker Compose Files
+Docker compose has a nice feature that **allows you to specify multiple docker compose files at runtime**. This way you can <u>define a base configuration and a much smaller overlay with customizations</u>.
+
+For example, lets say we had `docker-compose-a.yml`:
+```dockerfile
+services:
+  my-service:
+    image: foobar
+```
+
+and `docker-compose-b.yml`:
+```dockerfile
+services:
+  my-service:
+    command: ["echo", "new command!"]
+```
+
+we can then issue the following `docker compose `command to run `my-service` with the updated command:
+```docker
+docker compose -f docker-compose-a.yml -f docker-compose-b.yml run my-service
+```
+
+#### 11.2.2 Debuggers
+As much as we all love sprinkling `console.log()` and `print()` statements, we need to be able to use real debuggers that enable us to set breakpoints, examine the runtime state of our code, etc...
+
+##### 11.2.2.1 Node API
+NodeJS has a <u>built in debugger</u> we can activate using the `--inspect` flag. We can set up an NPM script to utilize this:
+```npm
+"debug-docker": "nodemon --inspect=0.0.0.0:9229 ./src/index.js",
+```
+
+By default, `inspect` would only accept connections from localhost, but in this case we want to accept connections from outside of the container which is why we specify `0.0.0.0` (any host).
+
+Now we can craft a compose overlay `docker-compose-debug.yml` to use this npm script and publish port 9229.
+```dockerfile
+services:
+  api-node:
+    command:
+      - "npm"
+      - "run"
+      - "debug-docker"
+    ports:
+      - "3000:3000"
+      # inspect debug port
+      - "9229:9229"
+```
+With this configuration we can connect to the debugger listening on port 9229.
+
+##### 11.2.2.2 Golang API
+In the previous lesson we added the following to our Dockerfile to install [delve](https://github.com/go-delve/delve), a golang debugger.
+```dockerfile
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+```
+
+Combining this with a compose overlay:
+
+```dockerfile
+services:
+  api-golang:
+    command:
+      - "dlv"
+      - "debug"
+      - "/app/main.go"
+      - "--listen=:4000"
+      - "--headless=true"
+      - "--log=true"
+      - "--log-output=debugger,debuglineerr,gdbwire,lldbout,rpc"
+      - "--accept-multiclient"
+      - "--continue"
+      - "--api-version=2"
+    ports:
+      - "8080:8080"
+      # delve debug port
+      - "4000:4000"
+```
+We can run our remote debugger and connect to it on port 4000.
+
+##### 11.2.2.3 Running in debug mode
+To use the updated configurations, run `docker compose up` with the *dev* and *debug* configurations together:
+```docker
+docker-compose -f docker-compose-dev.yml -f docker-compose-debug.yml up --build
+```
+As discussed earlier, this command will interleave the configuration from both the `docker-compose-dev.yml` and `docker-compose-debug.yml `files.
+
+### 11.3 Tests
+We want to run tests in an environment as similar as possible to production, so it only makes sense to do so inside of our containers!
+
+#### 11.3.1 Test compose file
+We will take advantage of the ability to **specify multiple docker compose yaml files** (as described in the previous section) to create a custom test configuration.
+
+All we need to do is ==include commands to override the defaults=={.tip} that execute our test suite(s):
+
+```dockerfile
+services:
+  api-node:
+    command:
+      - "npm"
+      - "run"
+      - "test"
+  api-golang:
+    command:
+      - "go"
+      - "test"
+      - "-v"
+      - "./..."
+```
+
+#### 11.3.2 Executing tests
+To execute the tests we can then run the following docker compose commands:
+
+```console
+docker-compose -f docker-compose-dev.yml -f docker-compose-test.yml run --rm api-node
+docker-compose -f docker-compose-dev.yml -f docker-compose-test.yml run --rm api-golang
+```
+
+These commands will **overlay the test configuration on the development configuration**, run the tests for each service, and remove the containers after the tests are executed.
+
+### 11.4 Continuous Integration (CI)
+Continuous integration is the idea of **executing some actions (for example build, test, etc...) automatically** as you push code to your version control system.
+
+For containers, there are a number of things we may want to do:
+
+1. Build the container images
+2. Execute tests
+3. Scan container images for vulnerabilities
+4. Tag images with useful metadata
+5. Push to a container registry
+
+#### 11.4.1 **GitHub Actions**
+GitHub Actions is a continuous integration pipeline system built into GitHub.
+
+You add configuration files to **.github/workflows** within the repo and GitHub will automatically execute them based on the conditions you set!
+
+GitHub actions has a [public marketplace](https://github.com/marketplace?type=actions) where people can publish open source actions that help make the process of writing your pipelines easier and faster. We will use a number of these actions as we build out a workflow for our repo.
+
+#### 11.4.2 Execution conditions
+Common events used to trigger workflows include:
+
+- <u>Push events to one or more branches</u> (e.g. with each update to the **main** branch)
+- Creation of tags (e.g. tag that matches **v*** pattern indicating **a release**)
+- Pull request creation/modification (usually to execute tests)
+
+In this case we want to run our workflow on push events to the **github-action** branch and on any **v*** tags. To specify this we use the following yaml:
+```yaml
+on:
+  push:
+    branches:
+      - "github-action"
+    tags:
+      - "v*"
+```
+
+#### 11.4.3 Build, Tag, and Push
+We can then specify one or more jobs. To keep things simple for the course I included a single job that will <u>build one of our container images, tag it, push it to Dockerhub, and scan it for vulnerabilities</u>.
+
+The job is given a name and a specific machine type to run on.
+```yaml
+jobs:
+  build-tag-push:
+    runs-on: ubuntu-latest
+    steps:
+      - ...
+```
+
+We then proceed through the following steps:
+
+1. Check out the code
+
+    A standard action which checks out the code from the repo at the relevant commit.
+
+    ```yaml
+    - name: Checkout
+      uses: actions/checkout@v3
+    ```
+2. Generate image tags
+
+    Uses an action <u>from Docker</u> to generate useful tags based on information about the triggering event, the commit sha, and the current timestamp.
+    ```yaml
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+          images: |
+            sidpalas/devops-directive-docker-course-api-node
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value={{date 'YYYYMMDD'}}-{{sha}}
+    ```
+
+3. Login to DockerHub
+    
+    Uses an action <u>from Docker + secrets</u> stored in the repo to authenticate to Dockerhub.
+    ```yaml
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    ```
+
+4. Build and push image
+
+    Use an action <u>from Docker along with the output of the tag generation step</u> to build and push the container image.
+    ```yaml
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+        file: ./06-building-container-images/api-node/Dockerfile.8
+        context: ./05-example-web-application/api-node/
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+    ```
+5. Scan image for vulnerabilities
+
+    Use an action <u>from Trivy</u> to run their security scanner against the built image and fail if any **CRITICAL** level vulnerabilities are found.
+    ```yaml
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: "sidpalas/devops-directive-docker-course-api-node:latest"
+        format: "table"
+        exit-code: "1"
+        ignore-unfixed: true
+        vuln-type: "os,library"
+        severity: "CRITICAL"
+    ```
+
+#### 11.4.4 Additional Resources
+For more examples and advanced use cases of **GitHub Actions and Docker CI/CD**, check out Brett Fisher's [Docker CI/CD Automation repository](https://github.com/BretFisher/docker-ci-automation).
+
+You can also watch his [talk](https://www.youtube.com/watch?v=aZzV6X7XhyI) on the subject for a full walkthrough.
+
+
+## 12. Deploying Containers
+Deploying containers is a crucial step in using Docker and containerization to manage applications more efficiently, easily scale, and ensure consistent performance across environments. This topic will give you an overview of how to deploy Docker containers to create and run your applications.
+### 12.1 Nomad
+Refer to [here](https://www.nomadproject.io/docs) to view details.
+### 12.2 Docker Swarm
+Docker Swarm is Docker’s native container orchestration tool that allows users to deploy, manage, and scale containers across a cluster of Docker hosts. By transforming a group of Docker nodes into a single, unified cluster, Swarm provides high availability, load balancing, and automated container scheduling using simple declarative commands. With features like service discovery, rolling updates, and integrated security through TLS encryption, Docker Swarm offers an approachable alternative to more complex orchestrators like Kubernetes. Its tight integration with the Docker CLI and ease of setup make it a suitable choice for small to medium-sized deployments where simplicity and straightforward management are priorities.
+
+Refer to [here](https://docs.docker.com/engine/swarm/) to view details.
+### 12.3 Kubernetes
+Kubernetes is an open-source container orchestration platform designed to automate the deployment, scaling, and management of containerized applications. It provides a robust framework for handling complex container workloads by organizing containers into logical units called pods, managing service discovery, load balancing, and scaling through declarative configurations. Kubernetes enables teams to deploy containers across clusters of machines, ensuring high availability and fault tolerance through self-healing capabilities like automatic restarts, replacements, and rollback mechanisms. With its extensive ecosystem and flexibility, Kubernetes has become the de facto standard for running large-scale, distributed applications, simplifying operations and improving the reliability of containerized workloads.
+
+Refer to [here](https://kubernetes.io/) to view details.
+### 12.4 PaaS Options
+Platform-as-a-Service (PaaS) options for deploying containers provide a simplified and managed environment where developers can build, deploy, and scale containerized applications without worrying about the underlying infrastructure. Popular PaaS offerings include Google Cloud Run, Azure App Service, AWS Elastic Beanstalk, and Heroku, which abstract away container orchestration complexities while offering automated scaling, easy integration with CI/CD pipelines, and monitoring capabilities. These platforms support rapid development and deployment by allowing teams to focus on application logic rather than server management, providing a seamless way to run containers in production with minimal operational overhead.
+
+- [Azure Container Instances](https://azure.microsoft.com/en-us/services/container-instances/)
+- [Google Cloud Run](https://cloud.google.com/run)
+- [IBM Cloud Code Engine](https://www.ibm.com/cloud/code-engine)
+- [Amazon Elastic Container Service](https://aws.amazon.com/ecs/)
